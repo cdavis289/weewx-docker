@@ -46,7 +46,7 @@ LABEL org.opencontainers.image.vendor="Geekpad"
 RUN addgroup --system --gid ${WEEWX_UID} weewx \
   && adduser --system --uid ${WEEWX_UID} --ingroup weewx weewx
 
-RUN apt-get update && apt-get install -y git libusb-1.0-0 libtiff6 libopenjp2-7 libfreetype6
+RUN apt-get update && apt-get install -y git libusb-1.0-0 librtlsdr0 rtl-sdr libtiff6 libopenjp2-7 libfreetype6
 
 WORKDIR ${WEEWX_HOME}
 
@@ -61,5 +61,9 @@ VOLUME ["/data"]
 ENV PATH="/opt/venv/bin:$PATH"
 ENV PIP_TARGET="/data/lib/python/site-packages"
 ENV PYTHONPATH="/data/lib/python/site-packages"
+COPY custom/rtldavis/bin/rtldavis /usr/local/bin/rtldavis
+COPY custom/weewx-rtldavis /opt/weewx-extensions/weewx-rtldavis
+RUN chmod +x /usr/local/bin/rtldavis
+
 USER weewx
 ENTRYPOINT ["./entrypoint.sh"]
