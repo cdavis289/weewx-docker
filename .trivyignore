@@ -1,0 +1,7 @@
+# Trivy false positive confirmed with Trivy 0.74.0.
+# The final image contains msgpack 1.2.2 in both detected Python environments.
+GHSA-6v7p-g79w-8964 exp:2026-11-01
+
+# Trivy false positive confirmed with Trivy 0.74.0.
+# The final image contains setuptools 84.0.0 in both detected Python environments.
+CVE-2025-47273 exp:2026-11-01
