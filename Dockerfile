@@ -25,7 +25,7 @@ COPY src/version.txt ./src/version.txt
 # pip is used here (rather than uv) because the image is built for many
 # architectures -- including linux/arm/v6, linux/arm/v7, linux/riscv64,
 # linux/ppc64le, and linux/s390x -- for which uv does not publish binaries.
-RUN pip install --no-cache-dir --upgrade pip \
+RUN pip install --no-cache-dir --upgrade pip setuptools "msgpack>=1.2.1" \
   && pip install --no-cache-dir .
 
 FROM python:${PYTHON_VERSION}-slim AS final-stage
@@ -50,7 +50,16 @@ RUN addgroup --system --gid ${WEEWX_UID} weewx \
 # libnss-wrapper lets the entrypoint synthesize passwd/group entries at runtime
 # so the container works under an arbitrary uid:gid (rootless / Kubernetes
 # runAsUser) without write access to /etc/passwd. See src/entrypoint.sh.
-RUN apt-get update && apt-get install -y git libusb-1.0-0 libtiff6 libopenjp2-7 libfreetype6 libnss-wrapper
+RUN apt-get update \
+  && apt-get upgrade -y \
+  && apt-get install -y --no-install-recommends \
+    git \
+    libusb-1.0-0 \
+    libtiff6 \
+    libopenjp2-7 \
+    libfreetype6 \
+    libnss-wrapper \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR ${WEEWX_HOME}
 
