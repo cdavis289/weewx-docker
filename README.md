@@ -168,7 +168,7 @@ docker compose run --rm --entrypoint pip weewx \
 | --- | --- |
 | `ghcr.io/cdavis289/weewx:5` | Latest image matching the major version. |
 | `ghcr.io/cdavis289/weewx:5.5` | Latest image matching the major and minor version. |
-| `ghcr.io/cdavis289/weewx:5.5.0` | Exact image version. |
+| `ghcr.io/cdavis289/weewx:5.5.1` | Exact image version. |
 
 See the
 [GHCR package](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx)
@@ -186,7 +186,7 @@ Build the image locally using this git repository as the [build context](https:/
 
 ```console
 docker build \
-  --tag ghcr.io/cdavis289/weewx:5.5.0 \
+  --tag ghcr.io/cdavis289/weewx:5.5.1 \
   https://github.com/cdavis289/weewx-docker.git#develop
 ```
 
@@ -210,7 +210,7 @@ Docker:
     docker buildx build \
       --platform linux/amd64 \
       --output type=docker \
-      --tag ghcr.io/cdavis289/weewx:5.5.0 .
+      --tag ghcr.io/cdavis289/weewx:5.5.1 .
     ```
 
 ## Contributing ##
