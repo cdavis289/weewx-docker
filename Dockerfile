@@ -60,6 +60,13 @@ RUN apt-get update \
     libnss-wrapper \
   && rm -rf /var/lib/apt/lists/*
 
+# Upgrade Python packages provided by the base image so vulnerability scanners
+# do not find stale global copies outside the application virtual environment.
+RUN python -m pip install --no-cache-dir --upgrade \
+    pip \
+    setuptools \
+    "msgpack>=1.2.1"
+
 WORKDIR ${WEEWX_HOME}
 
 COPY --from=build-stage /opt/venv /opt/venv
