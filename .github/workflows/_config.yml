@@ -18,7 +18,7 @@ on:  # yamllint disable-line rule:truthy
         value: ${{ jobs.config.outputs.container_version }}
       image_name:
         description: The container image name
-        value: felddy/weewx
+        value: cdavis289/weewx
       platforms:
         description: The platforms to build (JSON array string)
         value: ${{ inputs.platforms }}

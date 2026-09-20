@@ -1,13 +1,13 @@
 CONTAINER_VERSION := $(shell tr -d '[:space:]' < src/version.txt)
 
 # Container image repository.
-IMAGE := ghcr.io/felddy/weewx
+IMAGE := ghcr.io/cdavis289/weewx
 
 # GitHub repository and the directory of branch/tag rulesets managed as code.
 # Ruleset IDs are resolved at run time by name, so they are not hardcoded.
 # See .github/rulesets/README.md for what the JSON contains (and a decoder
 # for the GitHub App IDs it references).
-REPO := felddy/weewx-docker
+REPO := cdavis289/weewx-docker
 RULESET_DIR := .github/rulesets
 
 .PHONY: guard-version guard-gh guard-jq build test version github-output help release apply-ruleset export-ruleset

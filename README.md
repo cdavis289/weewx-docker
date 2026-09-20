@@ -1,14 +1,14 @@
 # weewx-docker 🌩🐳 #
 
-[![GitHub Build Status](https://github.com/felddy/weewx-docker/workflows/Build/badge.svg)](https://github.com/felddy/weewx-docker/actions)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/felddy/weewx-docker/badge)](https://securityscorecards.dev/viewer/?uri=github.com/felddy/weewx-docker)
+[![GitHub Build Status](https://github.com/cdavis289/weewx-docker/workflows/Build/badge.svg)](https://github.com/cdavis289/weewx-docker/actions)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/cdavis289/weewx-docker/badge)](https://securityscorecards.dev/viewer/?uri=github.com/cdavis289/weewx-docker)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/6003/badge)](https://bestpractices.coreinfrastructure.org/projects/6003)
-[![CodeQL](https://github.com/felddy/weewx-docker/workflows/CodeQL/badge.svg)](https://github.com/felddy/weewx-docker/actions/workflows/codeql-analysis.yml)
-[![WeeWX Version](https://img.shields.io/github/v/release/felddy/weewx-docker?color=brightgreen)](https://hub.docker.com/r/felddy/weewx)
+[![CodeQL](https://github.com/cdavis289/weewx-docker/workflows/CodeQL/badge.svg)](https://github.com/cdavis289/weewx-docker/actions/workflows/codeql-analysis.yml)
+[![WeeWX Version](https://img.shields.io/github/v/release/cdavis289/weewx-docker?color=brightgreen)](https://github.com/cdavis289/weewx-docker/releases)
 
-[![Docker Pulls](https://img.shields.io/docker/pulls/felddy/weewx)](https://hub.docker.com/r/felddy/weewx)
-[![Docker Image Size (latest by date)](https://img.shields.io/docker/image-size/felddy/weewx)](https://hub.docker.com/r/felddy/weewx)
-[![Platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm%2Fv6%20%7C%20arm%2Fv7%20%7C%20arm64%20%7C%20ppc64le%20%7C%20riscv64%20%7C%20s390x-blue)](https://hub.docker.com/r/felddy/weewx/tags)
+[![GHCR](https://img.shields.io/badge/container-ghcr.io-blue)](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx)
+[![GitHub package](https://img.shields.io/badge/package-weewx-blue)](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx)
+[![Platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm%2Fv6%20%7C%20arm%2Fv7%20%7C%20arm64%20%7C%20ppc64le%20%7C%20riscv64%20%7C%20s390x-blue)](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx)
 
 This docker container can be used to quickly get a
 [WeeWX](http://weewx.com) instance up and running.
@@ -28,7 +28,7 @@ name: "weewx"
 
 services:
   weewx:
-    image: felddy/weewx:5
+    image: ghcr.io/cdavis289/weewx:5
     volumes:
       - type: bind
         source: ./data
@@ -72,7 +72,7 @@ The container also supports running under an **arbitrary `uid:gid`**.
 ```yaml
 services:
   weewx:
-    image: felddy/weewx:5
+    image: ghcr.io/cdavis289/weewx:5
     user: "1234:1234"
     volumes:
       - type: bind
@@ -176,11 +176,11 @@ WeeWX](https://weewx.com/docs.html) that they support.
 
 | Image:tag            | Description                                                                             |
 | -------------------- | --------------------------------------------------------------------------------------- |
-| `felddy/weewx:5`     | The most recent image matching the major version number.  Most users will use this tag. |
-| `felddy/weewx:5.4`   | The most recent image matching the major and minor version numbers.                     |
-| `felddy/weewx:5.4.0` | An exact image version.                                                                 |
+| `ghcr.io/cdavis289/weewx:5`     | The most recent image matching the major version number.  Most users will use this tag. |
+| `ghcr.io/cdavis289/weewx:5.4`   | The most recent image matching the major and minor version numbers.                     |
+| `ghcr.io/cdavis289/weewx:5.4.0` | An exact image version.                                                                 |
 
-See the [tags tab](https://hub.docker.com/r/felddy/weewx/tags) on Docker
+See the [tags tab](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx) on Docker
 Hub for a list of all the supported tags.
 
 ## Volumes ##
@@ -195,8 +195,8 @@ Build the image locally using this git repository as the [build context](https:/
 
 ```console
 docker build \
-  --tag felddy/weewx:5.4.0 \
-  https://github.com/felddy/weewx-docker.git#develop
+  --tag ghcr.io/cdavis289/weewx:5.4.0 \
+  https://github.com/cdavis289/weewx-docker.git#develop
 ```
 
 ## Cross-platform builds ##
@@ -209,7 +209,7 @@ Docker:
    or the command line:
 
     ```console
-    git clone https://github.com/felddy/weewx-docker.git
+    git clone https://github.com/cdavis289/weewx-docker.git
     cd weewx-docker
     ```
 
@@ -219,7 +219,7 @@ Docker:
     docker buildx build \
       --platform linux/amd64 \
       --output type=docker \
-      --tag felddy/weewx:5.4.0 .
+      --tag ghcr.io/cdavis289/weewx:5.4.0 .
     ```
 
 ## Contributing ##

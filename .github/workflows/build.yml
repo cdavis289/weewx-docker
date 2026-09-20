@@ -167,7 +167,8 @@ jobs:
     needs:
       - publish-manifest
       - config
-    if: github.event_name == 'release' && !github.event.release.prerelease
+    # Fork publishes to GitHub Container Registry only.
+    if: ${{ false }}
     permissions:
       contents: read
       packages: read
@@ -185,10 +186,8 @@ jobs:
     needs:
       - publish-manifest
       - config
-    if: |
-      github.event_name == 'release' &&
-      !github.event.release.prerelease &&
-      needs.publish-manifest.outputs.is-latest == 'true'
+    # Fork publishes to GitHub Container Registry only.
+    if: ${{ false }}
     uses: felddy/reusable-workflows/.github/workflows/dockerhub-description.yml@76486c28caa391f5f9db4941fc555a20a6e084c8  # tag=v4.2.0
     with:
       image_name: ${{ needs.config.outputs.image_name }}
