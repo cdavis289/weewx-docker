@@ -55,7 +55,7 @@ permissions:
 jobs:
   diagnostics:
     name: Diagnostics
-    uses: felddy/reusable-workflows/.github/workflows/diagnostics.yml@76486c28caa391f5f9db4941fc555a20a6e084c8  # tag=v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/diagnostics.yml@931f4e1ee7153a930b4a56832c7c9875d92f4753  # fork based on v4.2.0
 
   config:
     name: Config
@@ -63,7 +63,7 @@ jobs:
 
   lint:
     name: Lint
-    uses: felddy/reusable-workflows/.github/workflows/common-lint.yml@76486c28caa391f5f9db4941fc555a20a6e084c8  # tag=v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/common-lint.yml@931f4e1ee7153a930b4a56832c7c9875d92f4753  # fork based on v4.2.0
 
   build:
     name: Build and Publish Container
@@ -76,7 +76,7 @@ jobs:
     if: |
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
-    uses: felddy/reusable-workflows/.github/workflows/container-build.yml@76486c28caa391f5f9db4941fc555a20a6e084c8  # tag=v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/container-build.yml@931f4e1ee7153a930b4a56832c7c9875d92f4753  # fork based on v4.2.0
     with:
       platforms: ${{ needs.config.outputs.platforms }}
       image-name: ${{ needs.config.outputs.image_name }}
@@ -102,7 +102,7 @@ jobs:
     needs:
       - config
       - build
-    uses: felddy/reusable-workflows/.github/workflows/container-test.yml@76486c28caa391f5f9db4941fc555a20a6e084c8  # tag=v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/container-test.yml@931f4e1ee7153a930b4a56832c7c9875d92f4753  # fork based on v4.2.0
     permissions:
       actions: read
       contents: read
@@ -151,7 +151,7 @@ jobs:
       - config
       - build
       - test
-    uses: felddy/reusable-workflows/.github/workflows/container-publish-manifest.yml@76486c28caa391f5f9db4941fc555a20a6e084c8  # tag=v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/container-publish-manifest.yml@931f4e1ee7153a930b4a56832c7c9875d92f4753  # fork based on v4.2.0
     permissions:
       actions: read
       contents: read
@@ -172,7 +172,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: felddy/reusable-workflows/.github/workflows/container-mirror.yml@76486c28caa391f5f9db4941fc555a20a6e084c8  # tag=v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/container-mirror.yml@931f4e1ee7153a930b4a56832c7c9875d92f4753  # fork based on v4.2.0
     with:
       image_name: ${{ needs.config.outputs.image_name }}
       image_tag_names: ${{ needs.publish-manifest.outputs.image-tag-names }}
@@ -188,7 +188,7 @@ jobs:
       - config
     # Fork publishes to GitHub Container Registry only.
     if: ${{ false }}
-    uses: felddy/reusable-workflows/.github/workflows/dockerhub-description.yml@76486c28caa391f5f9db4941fc555a20a6e084c8  # tag=v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/dockerhub-description.yml@931f4e1ee7153a930b4a56832c7c9875d92f4753  # fork based on v4.2.0
     with:
       image_name: ${{ needs.config.outputs.image_name }}
     secrets:
