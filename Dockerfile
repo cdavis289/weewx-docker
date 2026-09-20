@@ -22,9 +22,8 @@ COPY pyproject.toml README.md ./
 COPY src/version.txt ./src/version.txt
 
 # Install the project and its runtime dependencies (weewx, etc.) into /opt/venv.
-# pip is used here (rather than uv) because the image is built for many
-# architectures -- including linux/arm/v6, linux/arm/v7, linux/riscv64,
-# linux/ppc64le, and linux/s390x -- for which uv does not publish binaries.
+# pip is used here to keep the image build simple and compatible across
+# the supported linux/amd64 and linux/arm64 platforms.
 RUN pip install --no-cache-dir --upgrade pip setuptools "msgpack>=1.2.1" \
   && pip install --no-cache-dir .
 
