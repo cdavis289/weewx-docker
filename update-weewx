@@ -11,6 +11,7 @@ fi
 NEW_VERSION="$1"
 VERSION_FILE="src/version.txt"
 PYPROJECT="pyproject.toml"
+RTL_DOCKERFILE="Dockerfile.rtldavis"
 
 if ! command -v uv > /dev/null 2>&1; then
   echo "ERROR: uv is required."
@@ -65,14 +66,15 @@ print(f"Found WeeWX {found} on PyPI.")
 PY
 
 echo
-echo "Updating $PYPROJECT and $VERSION_FILE..."
+echo "Updating $PYPROJECT, $VERSION_FILE, and $RTL_DOCKERFILE..."
 
-python3 - "$OLD_VERSION" "$NEW_VERSION" << 'PY'
+python3 - "$OLD_VERSION" "$NEW_VERSION" "$RTL_DOCKERFILE" << 'PY'
 from pathlib import Path
 import sys
 
 old = sys.argv[1]
 new = sys.argv[2]
+rtldavis_dockerfile = Path(sys.argv[3])
 
 pyproject = Path("pyproject.toml")
 text = pyproject.read_text()
@@ -90,6 +92,19 @@ text = text.replace(old_dependency, new_dependency, 1)
 pyproject.write_text(text)
 
 Path("src/version.txt").write_text(new + "\n")
+docker_text = rtldavis_dockerfile.read_text()
+
+old_base = f"ARG WEEWX_BASE_IMAGE=ghcr.io/cdavis289/weewx:{old}"
+new_base = f"ARG WEEWX_BASE_IMAGE=ghcr.io/cdavis289/weewx:{new}"
+
+if old_base not in docker_text:
+    raise SystemExit(
+        f"ERROR: Expected rtldavis base '{old_base}' was not found "
+        f"in {rtldavis_dockerfile}."
+    )
+
+docker_text = docker_text.replace(old_base, new_base, 1)
+rtldavis_dockerfile.write_text(docker_text)
 PY
 
 echo
