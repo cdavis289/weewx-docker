@@ -1,0 +1,127 @@
+---
+name: Check for WeeWX updates
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 11 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    name: Check WeeWX
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: develop
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install development dependencies
+        run: uv sync --group dev
+
+      - name: Get current and latest WeeWX versions
+        id: versions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          current="$(tr -d '[:space:]' < src/version.txt)"
+
+          latest="$(
+            python3 - <<'PY'
+          import json
+          import urllib.request
+
+          with urllib.request.urlopen(
+              "https://pypi.org/pypi/weewx/json",
+              timeout=30,
+          ) as response:
+              data = json.load(response)
+
+          print(data["info"]["version"])
+          PY
+          )"
+
+          echo "current=${current}" >> "$GITHUB_OUTPUT"
+          echo "latest=${latest}" >> "$GITHUB_OUTPUT"
+
+          echo "Current WeeWX: ${current}"
+          echo "Latest WeeWX:  ${latest}"
+
+      - name: Stop if already current
+        if: steps.versions.outputs.current == steps.versions.outputs.latest
+        run: echo "Already running the latest WeeWX release."
+
+      - name: Update WeeWX
+        if: steps.versions.outputs.current != steps.versions.outputs.latest
+        run: |
+          ./update-weewx "${{ steps.versions.outputs.latest }}"
+
+      - name: Build container
+        if: steps.versions.outputs.current != steps.versions.outputs.latest
+        run: make build
+
+      - name: Test container
+        if: steps.versions.outputs.current != steps.versions.outputs.latest
+        run: make test
+
+      - name: Create update pull request
+        if: steps.versions.outputs.current != steps.versions.outputs.latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_VERSION: ${{ steps.versions.outputs.latest }}
+          OLD_VERSION: ${{ steps.versions.outputs.current }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          branch="automation/weewx-${NEW_VERSION}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "${branch}"
+
+          git add \
+            README.md \
+            pyproject.toml \
+            src/version.txt \
+            uv.lock
+
+          git commit -m "Update WeeWX to ${NEW_VERSION}"
+          git push --force-with-lease origin "${branch}"
+
+          existing="$(
+            gh pr list \
+              --head "${branch}" \
+              --base develop \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [[ -n "${existing}" ]]; then
+            echo "Pull request #${existing} already exists."
+            exit 0
+          fi
+
+          gh pr create \
+            --base develop \
+            --head "${branch}" \
+            --title "Update WeeWX to ${NEW_VERSION}" \
+            --body "Automated WeeWX update from ${OLD_VERSION} to ${NEW_VERSION}.
+
+          Validation completed before this pull request was created:
+
+          - dependency lock updated
+          - README regenerated
+          - container image built successfully
+          - container test suite passed"
