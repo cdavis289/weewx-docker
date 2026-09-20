@@ -2,7 +2,6 @@
 
 # Standard Python Libraries
 import os
-from pathlib import Path
 import re
 from typing import List
 
@@ -40,7 +39,13 @@ def group_github_log_lines(request):
 
 
 @pytest.fixture(scope="session")
-def gen_test_config_container(image_tag):
+def test_data_dir(tmp_path_factory):
+    """Create an isolated WeeWX data directory for the container tests."""
+    return tmp_path_factory.mktemp("weewx-data")
+
+
+@pytest.fixture(scope="session")
+def gen_test_config_container(image_tag, test_data_dir):
     """Fixture for the test configuration generator container."""
     container = client.containers.run(
         image_tag,
@@ -48,19 +53,18 @@ def gen_test_config_container(image_tag):
         detach=True,
         name=GEN_TEST_CONFIG_SERVICE_NAME,
         # Run with the host UID:GID so the container can write to the
-        # bind-mounted ./data directory (owned by the host/runner user, not the
-        # image's uid 1000 "weewx" user). This deliberately exercises the
+        # bind-mounted temporary directory. This deliberately exercises the
         # arbitrary-uid path: the entrypoint uses nss_wrapper to synthesize
         # passwd/group entries so weewx's user/group name lookups succeed.
         user=f"{os.getuid()}:{os.getgid()}",
-        volumes={str(Path.cwd() / Path("data")): {"bind": "/data", "driver": "local"}},
+        volumes={str(test_data_dir): {"bind": "/data", "driver": "local"}},
     )
     yield container
     container.remove(force=True)
 
 
 @pytest.fixture(scope="session")
-def main_container(image_tag):
+def main_container(image_tag, test_data_dir):
     """Fixture for the main weewx container."""
     container = client.containers.run(
         image_tag,
@@ -78,7 +82,7 @@ def main_container(image_tag):
         # arbitrary-uid path: the entrypoint uses nss_wrapper to synthesize
         # passwd/group entries so weewx's user/group name lookups succeed.
         user=f"{os.getuid()}:{os.getgid()}",
-        volumes={str(Path.cwd() / Path("data")): {"bind": "/data", "driver": "local"}},
+        volumes={str(test_data_dir): {"bind": "/data", "driver": "local"}},
     )
     yield container
     container.remove(force=True)

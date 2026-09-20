@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 <weewx-version>"
+  echo "Example: $0 5.5.0"
+  exit 1
+fi
+
+NEW_VERSION="$1"
+VERSION_FILE="src/version.txt"
+PYPROJECT="pyproject.toml"
+
+if ! command -v uv > /dev/null 2>&1; then
+  echo "ERROR: uv is required."
+  exit 1
+fi
+
+if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+  echo "ERROR: '$NEW_VERSION' does not look like a valid version."
+  exit 1
+fi
+
+OLD_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
+
+if [[ "$NEW_VERSION" == "$OLD_VERSION" ]]; then
+  echo "WeeWX is already set to $NEW_VERSION."
+  exit 0
+fi
+
+echo "Current WeeWX version: $OLD_VERSION"
+echo "Requested version:     $NEW_VERSION"
+
+echo
+echo "Checking PyPI for WeeWX $NEW_VERSION..."
+
+python3 - "$NEW_VERSION" << 'PY'
+import json
+import sys
+import urllib.error
+import urllib.request
+
+version = sys.argv[1]
+url = f"https://pypi.org/pypi/weewx/{version}/json"
+
+try:
+    with urllib.request.urlopen(url, timeout=15) as response:
+        data = json.load(response)
+except urllib.error.HTTPError as exc:
+    if exc.code == 404:
+        raise SystemExit(f"ERROR: WeeWX {version} was not found on PyPI.")
+    raise
+except Exception as exc:
+    raise SystemExit(f"ERROR: Unable to check PyPI: {exc}")
+
+found = data["info"]["version"]
+
+if found != version:
+    raise SystemExit(
+        f"ERROR: PyPI returned version {found!r}, expected {version!r}"
+    )
+
+print(f"Found WeeWX {found} on PyPI.")
+PY
+
+echo
+echo "Updating $PYPROJECT and $VERSION_FILE..."
+
+python3 - "$OLD_VERSION" "$NEW_VERSION" << 'PY'
+from pathlib import Path
+import sys
+
+old = sys.argv[1]
+new = sys.argv[2]
+
+pyproject = Path("pyproject.toml")
+text = pyproject.read_text()
+
+old_dependency = f"weewx == {old}"
+new_dependency = f"weewx == {new}"
+
+if old_dependency not in text:
+    raise SystemExit(
+        f"ERROR: Expected dependency '{old_dependency}' was not found "
+        "in pyproject.toml."
+    )
+
+text = text.replace(old_dependency, new_dependency, 1)
+pyproject.write_text(text)
+
+Path("src/version.txt").write_text(new + "\n")
+PY
+
+echo
+echo "Updating dependency lockfile..."
+uv lock
+
+echo
+echo "Regenerating README..."
+make README.md
+
+echo
+echo "Update complete:"
+echo "  WeeWX $OLD_VERSION -> $NEW_VERSION"
+echo
+echo "Changed files:"
+git status --short
+
+echo
+echo "Review with:"
+echo "  git diff"
+echo
+echo "Then test with:"
+echo "  make build"
+echo "  make test"

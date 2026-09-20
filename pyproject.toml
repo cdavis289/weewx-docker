@@ -19,7 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Atmospheric Science",
 ]
-dependencies = ["ephem", "pyserial", "pyusb", "setuptools", "weewx == 5.4.0"]
+dependencies = ["ephem", "pyserial", "pyusb", "setuptools", "weewx == 5.5.0"]
 description = "Containerized WeeWX"
 dynamic = ["version"]
 keywords = ["container", "docker", "weewx"]
@@ -29,9 +29,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 
 [project.urls]
-homepage = "https://github.com/felddy"
-issues = "https://github.com/felddy/weewx-docker/issues"
-source = "https://github.com/felddy/weewx-docker"
+homepage = "https://github.com/cdavis289/weewx-docker"
+issues = "https://github.com/cdavis289/weewx-docker/issues"
+source = "https://github.com/cdavis289/weewx-docker"
 
 [dependency-groups]
 test = [

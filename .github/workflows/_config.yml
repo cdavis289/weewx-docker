@@ -9,7 +9,7 @@ on:  # yamllint disable-line rule:truthy
       platforms:
         description: The platforms to build (JSON array string)
         default: >-
-          ["linux/amd64","linux/arm/v6","linux/arm/v7","linux/arm64","linux/ppc64le","linux/riscv64","linux/s390x"]
+          ["linux/amd64","linux/arm64"]
         required: false
         type: string
     outputs:
@@ -18,7 +18,7 @@ on:  # yamllint disable-line rule:truthy
         value: ${{ jobs.config.outputs.container_version }}
       image_name:
         description: The container image name
-        value: felddy/weewx
+        value: cdavis289/weewx
       platforms:
         description: The platforms to build (JSON array string)
         value: ${{ inputs.platforms }}

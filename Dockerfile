@@ -22,10 +22,9 @@ COPY pyproject.toml README.md ./
 COPY src/version.txt ./src/version.txt
 
 # Install the project and its runtime dependencies (weewx, etc.) into /opt/venv.
-# pip is used here (rather than uv) because the image is built for many
-# architectures -- including linux/arm/v6, linux/arm/v7, linux/riscv64,
-# linux/ppc64le, and linux/s390x -- for which uv does not publish binaries.
-RUN pip install --no-cache-dir --upgrade pip \
+# pip is used here to keep the image build simple and compatible across
+# the supported linux/amd64 and linux/arm64 platforms.
+RUN pip install --no-cache-dir --upgrade pip setuptools "msgpack>=1.2.1" \
   && pip install --no-cache-dir .
 
 FROM python:${PYTHON_VERSION}-slim AS final-stage
@@ -50,7 +49,23 @@ RUN addgroup --system --gid ${WEEWX_UID} weewx \
 # libnss-wrapper lets the entrypoint synthesize passwd/group entries at runtime
 # so the container works under an arbitrary uid:gid (rootless / Kubernetes
 # runAsUser) without write access to /etc/passwd. See src/entrypoint.sh.
-RUN apt-get update && apt-get install -y git libusb-1.0-0 libtiff6 libopenjp2-7 libfreetype6 libnss-wrapper
+RUN apt-get update \
+  && apt-get upgrade -y \
+  && apt-get install -y --no-install-recommends \
+    git \
+    libusb-1.0-0 \
+    libtiff6 \
+    libopenjp2-7 \
+    libfreetype6 \
+    libnss-wrapper \
+  && rm -rf /var/lib/apt/lists/*
+
+# Upgrade Python packages provided by the base image so vulnerability scanners
+# do not find stale global copies outside the application virtual environment.
+RUN python -m pip install --no-cache-dir --upgrade \
+    pip \
+    setuptools \
+    "msgpack>=1.2.1"
 
 WORKDIR ${WEEWX_HOME}
 
