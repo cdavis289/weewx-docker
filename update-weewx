@@ -3,30 +3,30 @@
 set -Eeuo pipefail
 
 if [[ $# -ne 1 ]]; then
-    echo "Usage: $0 <weewx-version>"
-    echo "Example: $0 5.5.0"
-    exit 1
+  echo "Usage: $0 <weewx-version>"
+  echo "Example: $0 5.5.0"
+  exit 1
 fi
 
 NEW_VERSION="$1"
 VERSION_FILE="src/version.txt"
 PYPROJECT="pyproject.toml"
 
-if ! command -v uv >/dev/null 2>&1; then
-    echo "ERROR: uv is required."
-    exit 1
+if ! command -v uv > /dev/null 2>&1; then
+  echo "ERROR: uv is required."
+  exit 1
 fi
 
 if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-    echo "ERROR: '$NEW_VERSION' does not look like a valid version."
-    exit 1
+  echo "ERROR: '$NEW_VERSION' does not look like a valid version."
+  exit 1
 fi
 
 OLD_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
 
 if [[ "$NEW_VERSION" == "$OLD_VERSION" ]]; then
-    echo "WeeWX is already set to $NEW_VERSION."
-    exit 0
+  echo "WeeWX is already set to $NEW_VERSION."
+  exit 0
 fi
 
 echo "Current WeeWX version: $OLD_VERSION"
@@ -35,7 +35,7 @@ echo "Requested version:     $NEW_VERSION"
 echo
 echo "Checking PyPI for WeeWX $NEW_VERSION..."
 
-python3 - "$NEW_VERSION" <<'PY'
+python3 - "$NEW_VERSION" << 'PY'
 import json
 import sys
 import urllib.error
@@ -67,7 +67,7 @@ PY
 echo
 echo "Updating $PYPROJECT and $VERSION_FILE..."
 
-python3 - "$OLD_VERSION" "$NEW_VERSION" <<'PY'
+python3 - "$OLD_VERSION" "$NEW_VERSION" << 'PY'
 from pathlib import Path
 import sys
 

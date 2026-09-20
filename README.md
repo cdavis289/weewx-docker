@@ -164,24 +164,15 @@ docker compose run --rm --entrypoint pip weewx \
 
 ## Image tags ##
 
-The images of this container are tagged with [semantic
-versions](https://semver.org) that align with the [version and build of
-WeeWX](https://weewx.com/docs.html) that they support.
+| Image:tag | Description |
+| --- | --- |
+| `ghcr.io/cdavis289/weewx:5` | Latest image matching the major version. |
+| `ghcr.io/cdavis289/weewx:5.5` | Latest image matching the major and minor version. |
+| `ghcr.io/cdavis289/weewx:5.5.0` | Exact image version. |
 
-> [!TIP]
-> It is recommended that users use the major version tag: `:5` Using the major
-> tag will ensure that you receive the most recent version of the software that
-> is compatible with your saved data, and prevents inadvertent upgrades to a new
-> major version.
-
-| Image:tag            | Description                                                                             |
-| -------------------- | --------------------------------------------------------------------------------------- |
-| `ghcr.io/cdavis289/weewx:5`     | The most recent image matching the major version number.  Most users will use this tag. |
-| `ghcr.io/cdavis289/weewx:5.5`   | The most recent image matching the major and minor version numbers.                     |
-| `ghcr.io/cdavis289/weewx:5.5.0` | An exact image version.                                                                 |
-
-See the [tags tab](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx) on Docker
-Hub for a list of all the supported tags.
+See the
+[GHCR package](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx)
+for all supported tags.
 
 ## Volumes ##
 
