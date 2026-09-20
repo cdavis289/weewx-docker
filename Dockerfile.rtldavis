@@ -1,0 +1,153 @@
+ARG WEEWX_BASE_IMAGE=ghcr.io/cdavis289/weewx:5.5.0
+FROM golang:1.22-bookworm AS rtldavis_builder
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential \
+      ca-certificates \
+      cmake \
+      git \
+      librtlsdr-dev \
+      pkg-config \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV GO111MODULE=off
+ENV GOPATH=/go
+
+ARG RTL_DAVIS_REPO=https://github.com/cdavis289/rtldavis.git
+ARG RTL_DAVIS_REF=master
+
+WORKDIR /go/src/github.com/lheijst
+
+RUN git clone --recursive "$RTL_DAVIS_REPO" /go/src/github.com/lheijst/rtldavis
+
+WORKDIR /go/src/github.com/lheijst/rtldavis
+
+RUN git checkout "$RTL_DAVIS_REF" \
+ && go build -o /usr/local/bin/rtldavis .
+
+FROM ${WEEWX_BASE_IMAGE}
+
+USER root
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      git \
+      rsync \
+      rtl-sdr \
+      unzip \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=rtldavis_builder /usr/local/bin/rtldavis /usr/local/bin/rtldavis
+
+RUN chmod 755 /usr/local/bin/rtldavis \
+ && ldd /usr/local/bin/rtldavis \
+ && command -v rtl_test \
+ && command -v rtl_fm
+
+# Vendor the WeeWX rtldavis driver into the image.
+# Pull from Chris's maintained fork so local rtldavis.py fixes survive rebuilds.
+ARG WEEWX_RTLDAVIS_REPO=https://github.com/cdavis289/weewx-rtldavis.git
+ARG WEEWX_RTLDAVIS_REF=pr19-manual-fixes
+
+RUN mkdir -p /opt/weewx-extensions/weewx-rtldavis \
+ && git clone --depth 1 --branch "$WEEWX_RTLDAVIS_REF" "$WEEWX_RTLDAVIS_REPO" /tmp/weewx-rtldavis \
+ && cp /tmp/weewx-rtldavis/bin/user/rtldavis.py /opt/weewx-extensions/weewx-rtldavis/rtldavis.py \
+ && test -f /opt/weewx-extensions/weewx-rtldavis/rtldavis.py \
+ && rm -rf /tmp/weewx-rtldavis
+
+# Vendor MQTTSubscribe into the image.
+# This preserves the manually installed service across image rebuilds.
+ARG MQTT_SUBSCRIBE_VERSION=3.0.0
+
+RUN mkdir -p /opt/weewx-extensions/MQTTSubscribe \
+ && curl -L "https://github.com/weewx-mqtt/subscribe/archive/refs/tags/v${MQTT_SUBSCRIBE_VERSION}.zip" -o /tmp/MQTTSubscribe.zip \
+ && unzip /tmp/MQTTSubscribe.zip -d /tmp \
+ && find /tmp -name MQTTSubscribe.py -exec cp {} /opt/weewx-extensions/MQTTSubscribe/MQTTSubscribe.py \; \
+ && test -f /opt/weewx-extensions/MQTTSubscribe/MQTTSubscribe.py \
+ && rm -rf /tmp/MQTTSubscribe.zip /tmp/subscribe-*
+
+# Vendor the patched WeeWX MQTT RESTful extension into the image.
+# Pull from Chris's maintained fork instead of copying a local patch file.
+ARG WEEWX_MQTT_REPO=https://github.com/cdavis289/weewx-mqtt.git
+ARG WEEWX_MQTT_REF=paho2-weewx5
+
+RUN mkdir -p /opt/weewx-extensions/weewx-mqtt \
+ && git clone --depth 1 --branch "$WEEWX_MQTT_REF" "$WEEWX_MQTT_REPO" /tmp/weewx-mqtt \
+ && cp /tmp/weewx-mqtt/bin/user/mqtt.py /opt/weewx-extensions/weewx-mqtt/mqtt.py \
+ && test -f /opt/weewx-extensions/weewx-mqtt/mqtt.py \
+ && rm -rf /tmp/weewx-mqtt
+
+# Vendor Belchertown New into the image.
+# Use "development" to track the beta/development branch.
+# Change to "v2.1beta3" if you want to pin exactly beta 3.
+ARG BELCHERTOWN_REPO=https://github.com/uajqq/weewx-belchertown-new.git
+ARG BELCHERTOWN_REF=development
+
+RUN rm -rf /opt/weewx-extensions/weewx-belchertown-new /tmp/weewx-belchertown-new \
+ && mkdir -p /opt/weewx-extensions/weewx-belchertown-new/bin/user \
+ && git clone --depth 1 --branch "$BELCHERTOWN_REF" "$BELCHERTOWN_REPO" /tmp/weewx-belchertown-new \
+ && echo "Belchertown ref requested: $BELCHERTOWN_REF" \
+ && git -C /tmp/weewx-belchertown-new rev-parse --short HEAD \
+ && grep -n 'log.info("version' /tmp/weewx-belchertown-new/bin/user/new_belchertown.py \
+ && cp -a /tmp/weewx-belchertown-new/skins/new-belchertown /opt/weewx-extensions/weewx-belchertown-new/new-belchertown \
+ && cp /tmp/weewx-belchertown-new/bin/user/new_belchertown.py /opt/weewx-extensions/weewx-belchertown-new/bin/user/new_belchertown.py \
+ && test -f /opt/weewx-extensions/weewx-belchertown-new/new-belchertown/skin.conf \
+ && test -f /opt/weewx-extensions/weewx-belchertown-new/new-belchertown/charts.conf.example \
+ && test -f /opt/weewx-extensions/weewx-belchertown-new/bin/user/new_belchertown.py \
+ && rm -rf /tmp/weewx-belchertown-new
+
+RUN cat > /usr/local/bin/start-weewx-rtldavis-overlay <<'EOF'
+#!/usr/bin/env bash
+set -e
+
+if [ -d /home/weewx/public_html ]; then
+  chown -R weewx:weewx /home/weewx/public_html || true
+fi
+
+mkdir -p /data/bin/user
+mkdir -p /data/skins/new-belchertown
+
+echo "Installing/updating weewx-rtldavis driver into /data/bin/user/rtldavis.py"
+cp /opt/weewx-extensions/weewx-rtldavis/rtldavis.py /data/bin/user/rtldavis.py
+
+if [ ! -f /data/bin/user/MQTTSubscribe.py ]; then
+  echo "Installing WeeWX MQTTSubscribe service into /data/bin/user/MQTTSubscribe.py"
+  cp /opt/weewx-extensions/MQTTSubscribe/MQTTSubscribe.py /data/bin/user/MQTTSubscribe.py
+fi
+
+echo "Installing patched WeeWX MQTT extension into /data/bin/user/mqtt.py"
+cp /opt/weewx-extensions/weewx-mqtt/mqtt.py /data/bin/user/mqtt.py
+
+if [ -f /data/skins/new-belchertown/charts.conf ]; then
+  echo "Preserving existing custom Belchertown charts.conf"
+  cp /data/skins/new-belchertown/charts.conf /tmp/belchertown-charts.conf
+fi
+
+echo "Installing/updating Belchertown New skin into /data/skins/new-belchertown"
+rsync -a --delete --no-owner --no-group \
+  --exclude='charts.conf' \
+  /opt/weewx-extensions/weewx-belchertown-new/new-belchertown/ \
+  /data/skins/new-belchertown/
+
+if [ -f /tmp/belchertown-charts.conf ]; then
+  cp /tmp/belchertown-charts.conf /data/skins/new-belchertown/charts.conf
+elif [ ! -f /data/skins/new-belchertown/charts.conf ] && [ -f /data/skins/new-belchertown/charts.conf.example ]; then
+  echo "Creating initial Belchertown charts.conf from charts.conf.example"
+  cp /data/skins/new-belchertown/charts.conf.example /data/skins/new-belchertown/charts.conf
+fi
+
+echo "Installing/updating Belchertown New Python extension into /data/bin/user/new_belchertown.py"
+cp /opt/weewx-extensions/weewx-belchertown-new/bin/user/new_belchertown.py /data/bin/user/new_belchertown.py
+
+chown -R weewx:weewx /data/bin/user /data/skins/new-belchertown 2>/dev/null || true
+
+exec weewxd --config /data/weewx.conf
+EOF
+
+RUN chmod +x /usr/local/bin/start-weewx-rtldavis-overlay
+
+ENTRYPOINT ["/usr/local/bin/start-weewx-rtldavis-overlay"]
+CMD []
