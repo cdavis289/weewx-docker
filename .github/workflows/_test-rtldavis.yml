@@ -83,7 +83,7 @@ jobs:
           IMAGE_REF: ${{ steps.image.outputs.ref }}
         run: |
           TEST_DATA=$(mktemp -d)
-          trap 'rm -rf "${TEST_DATA}"' EXIT
+          trap 'sudo rm -rf "${TEST_DATA}"' EXIT
 
           mkdir -p "${TEST_DATA}/skins/new-belchertown"
 
