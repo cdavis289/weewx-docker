@@ -1,5 +1,5 @@
 ARG WEEWX_BASE_IMAGE=ghcr.io/cdavis289/weewx:5.5.1
-FROM golang:1.22-bookworm AS rtldavis_builder
+FROM golang:1.26.8-bookworm AS rtldavis_builder
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
