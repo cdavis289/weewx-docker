@@ -19,6 +19,9 @@ on:  # yamllint disable-line rule:truthy
       image_name:
         description: The container image name
         value: cdavis289/weewx
+      rtldavis_image_name:
+        description: The rtldavis container image name
+        value: cdavis289/weewx-rtldavis
       platforms:
         description: The platforms to build (JSON array string)
         value: ${{ inputs.platforms }}
