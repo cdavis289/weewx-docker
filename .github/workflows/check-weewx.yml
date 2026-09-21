@@ -91,6 +91,7 @@ jobs:
           git checkout -b "${branch}"
 
           git add \
+            Dockerfile.rtldavis \
             README.md \
             pyproject.toml \
             src/version.txt \
