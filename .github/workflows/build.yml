@@ -55,7 +55,7 @@ permissions:
 jobs:
   diagnostics:
     name: Diagnostics
-    uses: cdavis289/reusable-workflows/.github/workflows/diagnostics.yml@126435049927e15679164fe1cd12d27e0300ef31  # fork based on v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/diagnostics.yml@972d7d3c2cb05b02856bf4c3b50ef7f1c8790286  # fork based on v4.2.0
 
   config:
     name: Config
@@ -63,7 +63,7 @@ jobs:
 
   lint:
     name: Lint
-    uses: cdavis289/reusable-workflows/.github/workflows/common-lint.yml@126435049927e15679164fe1cd12d27e0300ef31  # fork based on v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/common-lint.yml@972d7d3c2cb05b02856bf4c3b50ef7f1c8790286  # fork based on v4.2.0
 
   build:
     name: Build and Publish Container
@@ -76,7 +76,7 @@ jobs:
     if: |
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
-    uses: cdavis289/reusable-workflows/.github/workflows/container-build.yml@126435049927e15679164fe1cd12d27e0300ef31  # fork based on v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/container-build.yml@972d7d3c2cb05b02856bf4c3b50ef7f1c8790286  # fork based on v4.2.0
     with:
       platforms: ${{ needs.config.outputs.platforms }}
       image-name: ${{ needs.config.outputs.image_name }}
@@ -102,7 +102,7 @@ jobs:
     needs:
       - config
       - build
-    uses: cdavis289/reusable-workflows/.github/workflows/container-test.yml@126435049927e15679164fe1cd12d27e0300ef31  # fork based on v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/container-test.yml@972d7d3c2cb05b02856bf4c3b50ef7f1c8790286  # fork based on v4.2.0
     permissions:
       actions: read
       contents: read
@@ -159,7 +159,7 @@ jobs:
       - config
       - build
       - test
-    uses: cdavis289/reusable-workflows/.github/workflows/container-publish-manifest.yml@126435049927e15679164fe1cd12d27e0300ef31  # fork based on v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/container-publish-manifest.yml@972d7d3c2cb05b02856bf4c3b50ef7f1c8790286  # fork based on v4.2.0
     permissions:
       actions: read
       contents: read
@@ -178,7 +178,7 @@ jobs:
     if: |
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
-    uses: cdavis289/reusable-workflows/.github/workflows/container-build.yml@126435049927e15679164fe1cd12d27e0300ef31
+    uses: cdavis289/reusable-workflows/.github/workflows/container-build.yml@972d7d3c2cb05b02856bf4c3b50ef7f1c8790286
     permissions:
       contents: read
       packages: write
@@ -221,7 +221,7 @@ jobs:
       - config
       - rtldavis-build
       - rtldavis-test
-    uses: cdavis289/reusable-workflows/.github/workflows/container-publish-manifest.yml@126435049927e15679164fe1cd12d27e0300ef31
+    uses: cdavis289/reusable-workflows/.github/workflows/container-publish-manifest.yml@972d7d3c2cb05b02856bf4c3b50ef7f1c8790286
     permissions:
       actions: read
       contents: read
@@ -242,7 +242,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: cdavis289/reusable-workflows/.github/workflows/container-mirror.yml@126435049927e15679164fe1cd12d27e0300ef31  # fork based on v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/container-mirror.yml@972d7d3c2cb05b02856bf4c3b50ef7f1c8790286  # fork based on v4.2.0
     with:
       image_name: ${{ needs.config.outputs.image_name }}
       image_tag_names: ${{ needs.publish-manifest.outputs.primary-image-tag }}
@@ -258,7 +258,7 @@ jobs:
       - config
     # Fork publishes to GitHub Container Registry only.
     if: ${{ false }}
-    uses: cdavis289/reusable-workflows/.github/workflows/dockerhub-description.yml@126435049927e15679164fe1cd12d27e0300ef31  # fork based on v4.2.0
+    uses: cdavis289/reusable-workflows/.github/workflows/dockerhub-description.yml@972d7d3c2cb05b02856bf4c3b50ef7f1c8790286  # fork based on v4.2.0
     with:
       image_name: ${{ needs.config.outputs.image_name }}
     secrets:
