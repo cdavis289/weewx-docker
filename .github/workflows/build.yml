@@ -134,7 +134,7 @@ jobs:
     # still runs when a dependency *fails* (failure is not cancellation), so
     # genuine failures are caught while cancelled runs simply skip the gate.
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Verify required jobs succeeded
         run: |
