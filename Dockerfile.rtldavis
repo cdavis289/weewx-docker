@@ -35,7 +35,6 @@ RUN apt-get update \
       ca-certificates \
       curl \
       git \
-      rsync \
       rtl-sdr \
       unzip \
  && rm -rf /var/lib/apt/lists/*
@@ -127,9 +126,9 @@ if [ -f /data/skins/new-belchertown/charts.conf ]; then
 fi
 
 echo "Installing/updating Belchertown New skin into /data/skins/new-belchertown"
-rsync -a --delete --no-owner --no-group \
-  --exclude='charts.conf' \
-  /opt/weewx-extensions/weewx-belchertown-new/new-belchertown/ \
+rm -rf /data/skins/new-belchertown
+mkdir -p /data/skins/new-belchertown
+cp -a /opt/weewx-extensions/weewx-belchertown-new/new-belchertown/. \
   /data/skins/new-belchertown/
 
 if [ -f /tmp/belchertown-charts.conf ]; then
