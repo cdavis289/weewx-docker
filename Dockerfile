@@ -58,6 +58,8 @@ RUN apt-get update \
     libopenjp2-7 \
     libfreetype6 \
     libnss-wrapper \
+  && dpkg-query -W -f='${Package} ${Version}\n' \
+    libssl3t64 openssl openssl-provider-legacy \
   && rm -rf /var/lib/apt/lists/*
 
 # Upgrade Python packages provided by the base image so vulnerability scanners
