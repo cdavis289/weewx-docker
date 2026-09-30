@@ -14,8 +14,6 @@ on:  # yamllint disable-line rule:truthy
     types:
       - edited
       - published
-  schedule:
-    - cron: 0 10 * * *  # everyday at 10am
   workflow_dispatch:
     inputs:
       image-tag:
