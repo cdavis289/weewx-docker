@@ -91,32 +91,32 @@ jobs:
             "${IMAGE_REF}" \
             -ec '
               /opt/venv/bin/python -c "
-import ast
-from pathlib import Path
+          import ast
+          from pathlib import Path
 
-driver = Path(\"/opt/weewx-extensions/weewx-rtldavis/rtldavis.py\").read_text()
-tree = ast.parse(driver)
+          driver = Path(\"/opt/weewx-extensions/weewx-rtldavis/rtldavis.py\").read_text()
+          tree = ast.parse(driver)
 
-versions = [
-    node.value.value
-    for node in tree.body
-    if isinstance(node, ast.Assign)
-    and any(isinstance(t, ast.Name) and t.id == \"DRIVER_VERSION\" for t in node.targets)
-    and isinstance(node.value, ast.Constant)
-]
-expected = __import__(\"os\").environ[\"EXPECTED_VERSION\"]
-assert versions == [expected], (versions, expected)
-assert \"stn_dict.get(\x27hardware_name\x27, \x27Rtldavis\x27)\" in driver
-assert \"return self._hardware_name\" in driver
+          versions = [
+          node.value.value
+          for node in tree.body
+          if isinstance(node, ast.Assign)
+          and any(isinstance(t, ast.Name) and t.id == \"DRIVER_VERSION\" for t in node.targets)
+          and isinstance(node.value, ast.Constant)
+          ]
+          expected = __import__(\"os\").environ[\"EXPECTED_VERSION\"]
+          assert versions == [expected], (versions, expected)
+          assert \"stn_dict.get(\x27hardware_name\x27, \x27Rtldavis\x27)\" in driver
+          assert \"return self._hardware_name\" in driver
 
-skin = Path(\"/opt/weewx-extensions/weewx-belchertown-new/new-belchertown/skin.conf\")
-extension = Path(\"/opt/weewx-extensions/weewx-belchertown-new/bin/user/new_belchertown.py\")
+          skin = Path(\"/opt/weewx-extensions/weewx-belchertown-new/new-belchertown/skin.conf\")
+          extension = Path(\"/opt/weewx-extensions/weewx-belchertown-new/bin/user/new_belchertown.py\")
 
-assert skin.is_file()
-assert extension.is_file()
-assert \"pirateweather\" in extension.read_text().lower()
-print(\"Driver and extension checks passed\")
-"
+          assert skin.is_file()
+          assert extension.is_file()
+          assert \"pirateweather\" in extension.read_text().lower()
+          print(\"Driver and extension checks passed\")
+          "
             '
 
       - name: Verify startup sync and charts preservation
