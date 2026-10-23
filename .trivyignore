@@ -5,3 +5,12 @@ GHSA-6v7p-g79w-8964 exp:2026-11-01
 # Trivy false positive confirmed with Trivy 0.74.0.
 # The final image contains setuptools 84.0.0 in both detected Python environments.
 CVE-2025-47273 exp:2026-11-01
+
+# Temporary risk acceptance: pip 26.2.2 bundles urllib3 2.7.0 in
+# both the global Python installation and the /opt/venv environment.
+# The WeeWX application uses patched urllib3 2.8.0.
+# These are genuine vulnerabilities in pip's vendored dependency,
+# not false positives. Remove these exceptions when upstream pip
+# includes urllib3 >=2.8.0. Review/expiration: 2026-11-01.
+CVE-2026-97687 exp:2026-11-01
+CVE-2026-97689 exp:2026-11-01
