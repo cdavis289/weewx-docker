@@ -78,6 +78,42 @@ jobs:
               test -x /usr/local/bin/start-weewx-rtldavis-overlay
             '
 
+      - name: Verify driver version and extensions
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+        run: |
+          docker run --rm \
+            --entrypoint /bin/bash \
+            "${IMAGE_REF}" \
+            -ec '
+              /opt/venv/bin/python -c "
+import ast
+from pathlib import Path
+
+driver = Path(\"/opt/weewx-extensions/weewx-rtldavis/rtldavis.py\").read_text()
+tree = ast.parse(driver)
+
+versions = [
+    node.value.value
+    for node in tree.body
+    if isinstance(node, ast.Assign)
+    and any(isinstance(t, ast.Name) and t.id == \"DRIVER_VERSION\" for t in node.targets)
+    and isinstance(node.value, ast.Constant)
+]
+assert versions == [\"0.21.1\"], versions
+assert \"stn_dict.get(\x27hardware_name\x27, \x27Rtldavis\x27)\" in driver
+assert \"return self._hardware_name\" in driver
+
+skin = Path(\"/opt/weewx-extensions/weewx-belchertown-new/new-belchertown/skin.conf\")
+extension = Path(\"/opt/weewx-extensions/weewx-belchertown-new/bin/user/new_belchertown.py\")
+
+assert skin.is_file()
+assert extension.is_file()
+assert \"pirateweather\" in extension.read_text().lower()
+print(\"Driver and extension checks passed\")
+"
+            '
+
       - name: Verify startup sync and charts preservation
         env:
           IMAGE_REF: ${{ steps.image.outputs.ref }}
@@ -97,7 +133,12 @@ jobs:
             --entrypoint /usr/local/bin/start-weewx-rtldavis-overlay \
             -v "${TEST_DATA}:/data" \
             "${IMAGE_REF}" \
-            >/tmp/rtldavis-startup.log 2>&1 || true
+            >/tmp/rtldavis-startup.log 2>&1 || {
+              echo "Overlay exited; checking synchronization results."
+            }
+
+          grep -q "Installing/updating Belchertown New Python extension" \
+            /tmp/rtldavis-startup.log
 
           test -f "${TEST_DATA}/bin/user/rtldavis.py"
           test -f "${TEST_DATA}/bin/user/MQTTSubscribe.py"

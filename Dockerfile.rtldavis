@@ -11,19 +11,19 @@ RUN apt-get update \
       pkg-config \
  && rm -rf /var/lib/apt/lists/*
 
-ENV GO111MODULE=off
+ENV GO111MODULE=on
 ENV GOPATH=/go
 
-ARG RTL_DAVIS_REPO=https://github.com/cdavis289/rtldavis.git
-ARG RTL_DAVIS_REF=master
+ARG RTL_DAVIS_REPO=https://github.com/weewx-packages/weewx-rtldavis.git
+ARG RTL_DAVIS_REF=v0.21.1
 
-WORKDIR /go/src/github.com/lheijst
+WORKDIR /build
 
-RUN git clone --recursive "$RTL_DAVIS_REPO" /go/src/github.com/lheijst/rtldavis
+RUN git clone --depth 1 --branch "$RTL_DAVIS_REF" "$RTL_DAVIS_REPO" /build/weewx-rtldavis
 
-WORKDIR /go/src/github.com/lheijst/rtldavis
+WORKDIR /build/weewx-rtldavis/receiver
 
-RUN git checkout "$RTL_DAVIS_REF" \
+RUN go mod download \
  && go build -o /usr/local/bin/rtldavis .
 
 FROM ${WEEWX_BASE_IMAGE}
@@ -46,16 +46,8 @@ RUN chmod 755 /usr/local/bin/rtldavis \
  && command -v rtl_test \
  && command -v rtl_fm
 
-# Vendor the WeeWX rtldavis driver into the image.
-# Pull from Chris's maintained fork so local rtldavis.py fixes survive rebuilds.
-ARG WEEWX_RTLDAVIS_REPO=https://github.com/cdavis289/weewx-rtldavis.git
-ARG WEEWX_RTLDAVIS_REF=pr19-manual-fixes
-
-RUN mkdir -p /opt/weewx-extensions/weewx-rtldavis \
- && git clone --depth 1 --branch "$WEEWX_RTLDAVIS_REF" "$WEEWX_RTLDAVIS_REPO" /tmp/weewx-rtldavis \
- && cp /tmp/weewx-rtldavis/bin/user/rtldavis.py /opt/weewx-extensions/weewx-rtldavis/rtldavis.py \
- && test -f /opt/weewx-extensions/weewx-rtldavis/rtldavis.py \
- && rm -rf /tmp/weewx-rtldavis
+# Vendor the tested continuation driver with the hardware_name patch.
+COPY test-assets/rtldavis/rtldavis.py /opt/weewx-extensions/weewx-rtldavis/rtldavis.py
 
 # Vendor MQTTSubscribe into the image.
 # This preserves the manually installed service across image rebuilds.
@@ -80,14 +72,14 @@ RUN mkdir -p /opt/weewx-extensions/weewx-mqtt \
  && rm -rf /tmp/weewx-mqtt
 
 # Vendor Belchertown New into the image.
-# Use "development" to track the beta/development branch.
-# Change to "v2.1beta3" if you want to pin exactly beta 3.
+# Pin a tested development commit to prevent unexpected changes during rebuilds.
 ARG BELCHERTOWN_REPO=https://github.com/uajqq/weewx-belchertown-new.git
-ARG BELCHERTOWN_REF=development
+ARG BELCHERTOWN_REF=f61c2dd877f9f0af4c7edfb68f88c4af6348c8ac
 
 RUN rm -rf /opt/weewx-extensions/weewx-belchertown-new /tmp/weewx-belchertown-new \
  && mkdir -p /opt/weewx-extensions/weewx-belchertown-new/bin/user \
- && git clone --depth 1 --branch "$BELCHERTOWN_REF" "$BELCHERTOWN_REPO" /tmp/weewx-belchertown-new \
+ && git clone "$BELCHERTOWN_REPO" /tmp/weewx-belchertown-new \
+ && git -C /tmp/weewx-belchertown-new checkout --detach "$BELCHERTOWN_REF" \
  && echo "Belchertown ref requested: $BELCHERTOWN_REF" \
  && git -C /tmp/weewx-belchertown-new rev-parse --short HEAD \
  && grep -n 'log.info("version' /tmp/weewx-belchertown-new/bin/user/new_belchertown.py \
