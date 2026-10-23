@@ -148,15 +148,17 @@ repos:
     hooks:
       - id: bandit
         name: bandit (everything else)
-        exclude: tests
+        exclude: ^(tests/|test-assets/rtldavis/rtldavis\.py$)
   - repo: https://github.com/psf/black-pre-commit-mirror
     rev: 25.11.0
     hooks:
       - id: black
+        exclude: ^test-assets/rtldavis/rtldavis\.py$
   - repo: https://github.com/PyCQA/flake8
     rev: 7.3.0
     hooks:
       - id: flake8
+        exclude: ^test-assets/rtldavis/rtldavis\.py$
         additional_dependencies:
           - flake8-docstrings==1.7.0
           # This is necessary to read the flake8 configuration from
@@ -166,6 +168,7 @@ repos:
     rev: 7.0.0
     hooks:
       - id: isort
+        exclude: ^test-assets/rtldavis/rtldavis\.py$
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.18.2
     hooks:
@@ -174,6 +177,7 @@ repos:
     rev: v3.21.2
     hooks:
       - id: pyupgrade
+        exclude: ^test-assets/rtldavis/rtldavis\.py$
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.11.3
     hooks:
