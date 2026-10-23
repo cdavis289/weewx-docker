@@ -15,7 +15,7 @@ ENV GO111MODULE=on
 ENV GOPATH=/go
 
 ARG RTL_DAVIS_REPO=https://github.com/weewx-packages/weewx-rtldavis.git
-ARG RTL_DAVIS_REF=v0.21.1
+ARG RTL_DAVIS_REF=v0.21.2
 
 WORKDIR /build
 

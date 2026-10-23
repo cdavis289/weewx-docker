@@ -82,8 +82,12 @@ jobs:
         env:
           IMAGE_REF: ${{ steps.image.outputs.ref }}
         run: |
+          EXPECTED_VERSION="$(sed -n 's/^ARG RTL_DAVIS_REF=v//p' Dockerfile.rtldavis)"
+          test -n "${EXPECTED_VERSION}"
+
           docker run --rm \
             --entrypoint /bin/bash \
+            -e EXPECTED_VERSION="${EXPECTED_VERSION}" \
             "${IMAGE_REF}" \
             -ec '
               /opt/venv/bin/python -c "
@@ -100,7 +104,8 @@ versions = [
     and any(isinstance(t, ast.Name) and t.id == \"DRIVER_VERSION\" for t in node.targets)
     and isinstance(node.value, ast.Constant)
 ]
-assert versions == [\"0.21.1\"], versions
+expected = __import__(\"os\").environ[\"EXPECTED_VERSION\"]
+assert versions == [expected], (versions, expected)
 assert \"stn_dict.get(\x27hardware_name\x27, \x27Rtldavis\x27)\" in driver
 assert \"return self._hardware_name\" in driver
 

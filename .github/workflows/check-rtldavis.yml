@@ -1,0 +1,173 @@
+---
+name: Check for RTL-Davis updates
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "37 11 * * 1"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    name: Check RTL-Davis
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # tag=v7.0.0
+        with:
+          ref: develop
+          token: ${{ secrets.AUTOMATION_TOKEN }}
+
+      - name: Get current and latest stable versions
+        id: versions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          current="$(sed -n 's/^ARG RTL_DAVIS_REF=//p' Dockerfile.rtldavis)"
+          test -n "${current}"
+
+          latest="$(
+            python3 - <<'PY'
+          import json
+          import urllib.request
+
+          url = (
+              "https://api.github.com/repos/"
+              "weewx-packages/weewx-rtldavis/releases/latest"
+          )
+          request = urllib.request.Request(
+              url, headers={"User-Agent": "weewx-docker-rtldavis-check"}
+          )
+
+          with urllib.request.urlopen(request, timeout=30) as response:
+              release = json.load(response)
+
+          if release.get("draft") or release.get("prerelease"):
+              raise SystemExit("Latest release is not stable")
+
+          print(release["tag_name"])
+          PY
+          )"
+
+          echo "current=${current}" >> "$GITHUB_OUTPUT"
+          echo "latest=${latest}" >> "$GITHUB_OUTPUT"
+
+          echo "Current RTL-Davis: ${current}"
+          echo "Latest RTL-Davis:  ${latest}"
+
+      - name: Update RTL-Davis
+        if: steps.versions.outputs.current != steps.versions.outputs.latest
+        run: ./update-rtldavis "${{ steps.versions.outputs.latest }}"
+
+      - name: Validate updated driver
+        if: steps.versions.outputs.current != steps.versions.outputs.latest
+        run: |
+          python3 -m py_compile test-assets/rtldavis/rtldavis.py
+          git diff --check
+
+      - name: Build RTL-Davis image
+        if: steps.versions.outputs.current != steps.versions.outputs.latest
+        run: |
+          docker build \
+            -f Dockerfile.rtldavis \
+            -t weewx-rtldavis:update-test \
+            .
+
+      - name: Verify RTL-Davis image
+        if: steps.versions.outputs.current != steps.versions.outputs.latest
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          expected="${{ steps.versions.outputs.latest }}"
+          expected="${expected#v}"
+
+          docker run --rm \
+            --entrypoint /opt/venv/bin/python \
+            -e EXPECTED_VERSION="${expected}" \
+            weewx-rtldavis:update-test \
+            -c '
+          import ast
+          import os
+          from pathlib import Path
+
+          driver = Path(
+              "/opt/weewx-extensions/weewx-rtldavis/rtldavis.py"
+          ).read_text()
+
+          tree = ast.parse(driver)
+          versions = [
+              node.value.value
+              for node in tree.body
+              if isinstance(node, ast.Assign)
+              and any(
+                  isinstance(target, ast.Name)
+                  and target.id == "DRIVER_VERSION"
+                  for target in node.targets
+              )
+              and isinstance(node.value, ast.Constant)
+          ]
+
+          assert versions == [os.environ["EXPECTED_VERSION"]]
+          assert "stn_dict.get('\''hardware_name'\'', '\''Rtldavis'\'')" in driver
+          assert "return self._hardware_name" in driver
+
+          print("RTL-Davis image validation passed.")
+          '
+
+      - name: Create update pull request
+        if: steps.versions.outputs.current != steps.versions.outputs.latest
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMATION_TOKEN }}
+          NEW_VERSION: ${{ steps.versions.outputs.latest }}
+          OLD_VERSION: ${{ steps.versions.outputs.current }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          branch="automation/rtldavis-${NEW_VERSION}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "${branch}"
+
+          git add Dockerfile.rtldavis test-assets/rtldavis/rtldavis.py
+          git commit -m "Update RTL-Davis to ${NEW_VERSION}"
+          git push --force-with-lease origin "${branch}"
+
+          existing="$(
+            gh pr list \
+              --head "${branch}" \
+              --base develop \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [[ -n "${existing}" ]]; then
+            echo "Pull request #${existing} already exists."
+            exit 0
+          fi
+
+          gh pr create \
+            --base develop \
+            --head "${branch}" \
+            --title "Update RTL-Davis to ${NEW_VERSION}" \
+            --body "Automated stable RTL-Davis update from ${OLD_VERSION} to ${NEW_VERSION}.
+
+          Validation completed before creating this PR:
+
+          - upstream stable release verified
+          - Python driver version verified
+          - hardware_name customization preserved
+          - Python syntax validated
+          - RTL-Davis Docker image built successfully
+          - installed driver version verified
+
+          Review and approve before merging. No automatic deployment."
