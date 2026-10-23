@@ -15,7 +15,14 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Atmospheric Science",
 ]
-dependencies = ["ephem", "pyserial", "pyusb", "setuptools", "weewx == 5.5.2"]
+dependencies = [
+    "ephem",
+    "pyserial",
+    "pyusb",
+    "setuptools",
+    "urllib3>=2.8.0",
+    "weewx == 5.5.2",
+]
 description = "Containerized WeeWX"
 dynamic = ["version"]
 keywords = ["container", "docker", "weewx"]

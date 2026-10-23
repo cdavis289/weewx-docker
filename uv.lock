@@ -972,6 +972,7 @@ dependencies = [
     { name = "pyserial" },
     { name = "pyusb" },
     { name = "setuptools" },
+    { name = "urllib3" },
     { name = "weewx" },
 ]
 
@@ -1003,6 +1004,7 @@ requires-dist = [
     { name = "pyserial" },
     { name = "pyusb" },
     { name = "setuptools" },
+    { name = "urllib3", specifier = ">=2.8.0" },
     { name = "weewx", specifier = "==5.5.2" },
 ]
 
