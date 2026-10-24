@@ -3,6 +3,7 @@
 
 # Standard Python Libraries
 import os
+import re
 import time
 
 # Third-Party Libraries
@@ -81,28 +82,66 @@ def test_wait_for_ready(main_container):
         )
 
 
+def release_image_version(project_version, release_tag):
+    """Validate an upstream version with an optional container revision."""
+    pattern = rf"v{re.escape(project_version)}(?:-r[1-9][0-9]*)?"
+    assert re.fullmatch(pattern, release_tag or ""), (
+        f"Release tag {release_tag!r} must match v{project_version} "
+        "or its -rN container revision"
+    )
+    return release_tag[1:]
+
+
+@pytest.mark.parametrize(
+    ("release_tag", "valid"),
+    [
+        ("v5.5.2", True),
+        ("v5.5.2-r1", True),
+        ("v5.5.2-r12", True),
+        ("v5.5.3-r1", False),
+        ("v5.5.2-rc1", False),
+        ("v5.5.2-r0", False),
+        ("v5.5.2-r1-extra", False),
+    ],
+)
+def test_release_image_version_validation(release_tag, valid):
+    """Container revisions must not change the upstream WeeWX version."""
+    if valid:
+        assert release_image_version("5.5.2", release_tag) == release_tag[1:]
+    else:
+        with pytest.raises(AssertionError):
+            release_image_version("5.5.2", release_tag)
+
+
+def current_release_tag():
+    """Use the explicit tag, or the GitHub release ref when running in Actions."""
+    return os.getenv("RELEASE_TAG") or (
+        os.getenv("GITHUB_REF_NAME")
+        if os.getenv("GITHUB_EVENT_NAME") == "release"
+        else None
+    )
+
+
 @pytest.mark.skipif(
-    os.environ.get("RELEASE_TAG") in [None, ""],
-    reason="this is not a release (RELEASE_TAG not set)",
+    not (os.environ.get("RELEASE_TAG") or (
+        os.environ.get("GITHUB_EVENT_NAME") == "release"
+        and os.environ.get("GITHUB_REF_NAME")
+    )),
+    reason="not a release (no release tag available)",
 )
 def test_release_version(project_version):
-    """Verify that release tag version agrees with the module version."""
-    assert (
-        os.getenv("RELEASE_TAG") == f"v{project_version}"
-    ), "RELEASE_TAG does not match the project version"
+    """Verify release version is the project version or a container revision."""
+    release_image_version(project_version, current_release_tag())
 
 
-# The container version label is added during the GitHub Actions build workflow.
-# It is derived from the git ref, so it only equals the project version on
-# release builds (branch/PR/schedule builds are tagged sha-*, edge, etc.).
-# Skip this check unless we are running a GitHub Actions release build.
 @pytest.mark.skipif(
     os.environ.get("GITHUB_ACTIONS") != "true"
     or os.environ.get("GITHUB_EVENT_NAME") != "release",
     reason="only checked during GitHub Actions release builds",
 )
 def test_container_version_label_matches(version_container, project_version):
-    """Verify the container version label is the correct version."""
+    """Verify the OCI label matches the full validated release image version."""
+    expected_version = release_image_version(project_version, current_release_tag())
     assert (
-        version_container.labels["org.opencontainers.image.version"] == project_version
-    ), "Container version label does not match project version"
+        version_container.labels["org.opencontainers.image.version"] == expected_version
+    ), "Container version label does not match release image version"
