@@ -123,10 +123,13 @@ def current_release_tag():
 
 
 @pytest.mark.skipif(
-    not (os.environ.get("RELEASE_TAG") or (
-        os.environ.get("GITHUB_EVENT_NAME") == "release"
-        and os.environ.get("GITHUB_REF_NAME")
-    )),
+    not (
+        os.environ.get("RELEASE_TAG")
+        or (
+            os.environ.get("GITHUB_EVENT_NAME") == "release"
+            and os.environ.get("GITHUB_REF_NAME")
+        )
+    ),
     reason="not a release (no release tag available)",
 )
 def test_release_version(project_version):
