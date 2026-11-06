@@ -147,6 +147,15 @@ jobs:
 
           mkdir -p "${TEST_DATA}/skins/new-belchertown"
 
+          # Match production: /data is a host volume. NumPy must remain
+          # importable from WeeWX's venv with the volume mounted.
+          docker run --rm \
+            --entrypoint /bin/bash \
+            -v "${TEST_DATA}:/data" \
+            "${IMAGE_REF}" \
+            -ec '/opt/venv/bin/python -c "import numpy; print(numpy.__version__)"'
+
+
           cat > "${TEST_DATA}/skins/new-belchertown/charts.conf" <<'CHARTS'
           # CUSTOM TEST CHARTS FILE
           [test_marker]
