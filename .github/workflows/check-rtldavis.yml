@@ -67,7 +67,7 @@ jobs:
       - name: Validate updated driver
         if: steps.versions.outputs.current != steps.versions.outputs.latest
         run: |
-          python3 -m py_compile test-assets/rtldavis/rtldavis.py
+          python3 -m py_compile test-assets/rtldavis/rtldavis*.py
           git diff --check
 
       - name: Build RTL-Davis image
@@ -114,6 +114,11 @@ jobs:
           ]
 
           assert versions == [os.environ["EXPECTED_VERSION"]]
+          assert Path("/opt/weewx-extensions/weewx-rtldavis/rtldavis_receiver.py").is_file()
+          assert Path("/opt/weewx-extensions/weewx-rtldavis/rtldavis_dsp.py").is_file()
+          import numpy
+          import ctypes.util
+          assert ctypes.util.find_library("rtlsdr")
           assert "stn_dict.get('\''hardware_name'\'', '\''Rtldavis'\'')" in driver
           assert "return self._hardware_name" in driver
 
@@ -137,7 +142,7 @@ jobs:
 
           git checkout -B "${branch}"
 
-          git add Dockerfile.rtldavis test-assets/rtldavis/rtldavis.py
+          git add Dockerfile.rtldavis test-assets/rtldavis/rtldavis*.py
           git commit -m "Update RTL-Davis to ${NEW_VERSION}"
           git push --force-with-lease origin "${branch}"
 
