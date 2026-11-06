@@ -5,7 +5,9 @@ USER root
 
 # Python-only RTL-Davis continuation (no Go receiver process).
 ARG RTL_DAVIS_REF=v0.22.2
-RUN /opt/venv/bin/python -m pip install --no-cache-dir 'numpy>=2,<3'
+# The base image sets PIP_TARGET=/data/lib/python/site-packages.
+# Installing there would be hidden by WeeWX's /data runtime bind mount.
+RUN env -u PIP_TARGET /opt/venv/bin/python -m pip install --no-cache-dir 'numpy>=2,<3'
 
 # Refresh the Debian package index even when BuildKit has cached an earlier
 # installation layer. Increment this value when a new CA bundle is required.
