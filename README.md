@@ -136,7 +136,7 @@ output in the container logs:
 ## Installing WeeWX Extensions ##
 
 If arguments are passed to the container, they are forwarded on to the
-[`weectl`](https://weewx.com/docs/5.5/utilities/weectl-about/) command.  This
+[`weectl`](https://weewx.com/docs/5.6/utilities/weectl-about/) command.  This
 can be used to install extensions:
 
 ```console
@@ -167,8 +167,8 @@ docker compose run --rm --entrypoint pip weewx \
 | Image:tag | Description |
 | --- | --- |
 | `ghcr.io/cdavis289/weewx:5` | Latest image matching the major version. |
-| `ghcr.io/cdavis289/weewx:5.5` | Latest image matching the major and minor version. |
-| `ghcr.io/cdavis289/weewx:5.5.2` | Exact image version. |
+| `ghcr.io/cdavis289/weewx:5.6` | Latest image matching the major and minor version. |
+| `ghcr.io/cdavis289/weewx:5.6.0` | Exact image version. |
 
 See the
 [GHCR package](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx)
@@ -178,7 +178,7 @@ for all supported tags.
 
 | Mount point | Purpose                                                                                           |
 | ----------- | ------------------------------------------------------------------------------------------------- |
-| `/data`     | [WeeWX root](https://weewx.com/docs/5.5/usersguide/where/#location-of-weewx-components) directory |
+| `/data`     | [WeeWX root](https://weewx.com/docs/5.6/usersguide/where/#location-of-weewx-components) directory |
 
 ## Building from source ##
 
@@ -186,7 +186,7 @@ Build the image locally using this git repository as the [build context](https:/
 
 ```console
 docker build \
-  --tag ghcr.io/cdavis289/weewx:5.5.2 \
+  --tag ghcr.io/cdavis289/weewx:5.6.0 \
   https://github.com/cdavis289/weewx-docker.git#develop
 ```
 
@@ -210,7 +210,7 @@ Docker:
     docker buildx build \
       --platform linux/amd64 \
       --output type=docker \
-      --tag ghcr.io/cdavis289/weewx:5.5.2 .
+      --tag ghcr.io/cdavis289/weewx:5.6.0 .
     ```
 
 ## Contributing ##
