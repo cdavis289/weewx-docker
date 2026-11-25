@@ -19,11 +19,12 @@ This repository publishes two image families:
 
 - [Base WeeWX](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx):
   standard WeeWX with conventional station drivers.
-- [Python RTL-Davis](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx-rtldavis):
+- [Python RTL-Davis](/cdavis289/weewx-docker/pkgs/container/weewx-rtldavis):
   WeeWX with the maintained Python RTL-SDR receiver.
 
 The RTL-Davis image includes the tested Python driver release
-[`v0.23.0-prod.1`](https://github.com/cdavis289/weewx-rtldavis-py/releases/tag/v0.23.0-prod.1).
+`v0.23.0-prod.1` (see the
+[driver releases](https://github.com/cdavis289/weewx-rtldavis-py/releases)).
 No separate Go receiver is needed. It also vendors MQTTSubscribe, a maintained
 WeeWX MQTT extension and Belchertown New.
 
@@ -59,7 +60,8 @@ docker compose up -d --no-deps --pull never weewx
 Configure `[Rtldavis]` in `data/weewx.conf`, setting
 `driver = user.rtldavis`, your frequency plan and your ISS channel.
 Use the dongle serial number for `device` if multiple SDRs are attached.
-See the [driver configuration](https://github.com/cdavis289/weewx-rtldavis-py/blob/main/docs/configuration.md).
+See the [Python driver repository](https://github.com/cdavis289/weewx-rtldavis-py)
+for the complete configuration reference.
 
 The image copies its vendored driver and MQTT extension files to
 `/data/bin/user` at startup and installs the Belchertown New skin under
