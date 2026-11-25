@@ -13,6 +13,64 @@
 This docker container can be used to quickly get a
 [WeeWX](http://weewx.com) instance up and running.
 
+## Available images ##
+
+This repository publishes two image families:
+
+- [Base WeeWX](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx):
+  standard WeeWX with conventional station drivers.
+- [Python RTL-Davis](/cdavis289/weewx-docker/pkgs/container/weewx-rtldavis):
+  WeeWX with the maintained Python RTL-SDR receiver.
+
+The RTL-Davis image includes the tested Python driver release
+`v0.23.0-prod.1` (see the
+[driver releases](https://github.com/cdavis289/weewx-rtldavis-py/releases)).
+No separate Go receiver is needed. It also vendors MQTTSubscribe, a maintained
+WeeWX MQTT extension and Belchertown New.
+
+For reproducible deployments, use an explicit image version. The `latest`
+tag is movable and may change after a release; existing running containers
+do not change until recreated with a newly pulled image.
+
+## Running Python RTL-Davis ##
+
+This is an alternative to the base WeeWX example below. It requires an
+RTL-SDR USB dongle, an appropriate Davis wireless station and host USB access.
+
+```yaml
+services:
+  weewx:
+    image: ghcr.io/cdavis289/weewx-rtldavis:{{ container_version }}
+    pull_policy: never
+    restart: unless-stopped
+    stop_grace_period: 90s
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    volumes:
+      - ./data:/data
+```
+
+With `pull_policy: never`, pull the image explicitly before starting:
+
+```console
+docker pull ghcr.io/cdavis289/weewx-rtldavis:{{ container_version }}
+docker compose up -d --no-deps --pull never weewx
+```
+
+Configure `[Rtldavis]` in `data/weewx.conf`, setting
+`driver = user.rtldavis`, your frequency plan and your ISS channel.
+Use the dongle serial number for `device` if multiple SDRs are attached.
+See the [Python driver](https://github.com/cdavis289/weewx-rtldavis-py)
+for the complete configuration reference.
+
+The image copies its vendored driver and MQTT extension files to
+`/data/bin/user` at startup and installs the Belchertown New skin under
+`/data/skins/new-belchertown`. An existing `charts.conf` is preserved;
+other files at these paths may be replaced. Back up `/data` before
+upgrading. The bundled services still need configuration for your
+broker, topics, credentials and reports. See
+[RTL-Davis production maintenance](docs/rtldavis-production.md).
+
 ## Running ##
 
 The easiest way to start the container is to create a
@@ -97,7 +155,9 @@ chown 1234:1234 data
     docker compose down
     ```
 
-1. Pull the new images from the Docker hub:
+1. Pull the selected image from GHCR. If you use
+   `pull_policy: never`, pull the image explicitly with
+   `docker pull IMAGE:TAG` before recreating the service:
 
     ```console
     docker compose pull
@@ -172,7 +232,11 @@ docker compose run --rm --entrypoint pip weewx \
 
 See the
 [GHCR package](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx)
-for all supported tags.
+for all supported base image tags. The RTL-Davis variant is published at
+`ghcr.io/cdavis289/weewx-rtldavis:{{ container_version }}`, with the
+latest full release also available as `:latest`.
+See the [RTL-Davis package](/cdavis289/weewx-docker/pkgs/container/weewx-rtldavis)
+for its supported tags.
 
 ## Volumes ##
 
