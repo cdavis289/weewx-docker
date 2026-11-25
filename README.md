@@ -140,11 +140,14 @@ chown 1234:1234 data
     docker compose down
     ```
 
-1. Pull the selected image from GHCR (if your service uses \`pull_policy: never\`, pull it explicitly with \`docker pull\` before recreating the service):
+1. Pull the selected image from GHCR:
 
     ```console
     docker compose pull
     ```
+
+    If your service uses `pull_policy: never`, pull its exact image
+    explicitly with `docker pull IMAGE:TAG` before recreating the service.
 
 1. Update your configuration file (a backup will be created):
 
