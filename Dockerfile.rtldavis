@@ -5,9 +5,9 @@ USER root
 
 # Python-only RTL-Davis continuation (no Go receiver process).
 ARG RTL_DAVIS_REF=v0.23.0
-ARG RTL_DAVIS_RELEASE=unreleased
+ARG RTL_DAVIS_RELEASE=v0.23.0-prod.1
 ARG RTL_DAVIS_REPOSITORY=cdavis289/weewx-rtldavis-py
-ARG RTL_DAVIS_COMMIT=dacc6c0b1a48c0cfdb34254260c8f2c028dd4cbc
+ARG RTL_DAVIS_COMMIT=4b3707fe8ff2cba0bc663311941f21980c8e853f
 
 LABEL io.github.rtldavis.repository="${RTL_DAVIS_REPOSITORY}" \
       io.github.rtldavis.release="${RTL_DAVIS_RELEASE}" \

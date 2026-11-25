@@ -1,5 +1,5 @@
 {
-  "commit": "dacc6c0b1a48c0cfdb34254260c8f2c028dd4cbc",
+  "commit": "4b3707fe8ff2cba0bc663311941f21980c8e853f",
   "customizations": [
     "Configurable hardware_name in rtldavis.py",
     "Trailing whitespace normalization"
@@ -39,6 +39,6 @@
       "vendored_sha256": "594a64414aecc5980bffb4e9d5498b6a7f87cffec6f0b003ca4168555f629327"
     }
   },
-  "release": "unreleased",
+  "release": "v0.23.0-prod.1",
   "repository": "cdavis289/weewx-rtldavis-py"
 }
