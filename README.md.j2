@@ -60,7 +60,7 @@ docker compose up -d --no-deps --pull never weewx
 Configure `[Rtldavis]` in `data/weewx.conf`, setting
 `driver = user.rtldavis`, your frequency plan and your ISS channel.
 Use the dongle serial number for `device` if multiple SDRs are attached.
-See the [Python driver repository](https://github.com/cdavis289/weewx-rtldavis-py)
+See the [Python driver](https://github.com/cdavis289/weewx-rtldavis-py)
 for the complete configuration reference.
 
 The image copies its vendored driver and MQTT extension files to
@@ -235,7 +235,7 @@ See the
 for all supported base image tags. The RTL-Davis variant is published at
 `ghcr.io/cdavis289/weewx-rtldavis:{{ container_version }}`, with the
 latest full release also available as `:latest`.
-See the [RTL-Davis package](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx-rtldavis)
+See the [RTL-Davis package](/cdavis289/weewx-docker/pkgs/container/weewx-rtldavis)
 for its supported tags.
 
 ## Volumes ##
