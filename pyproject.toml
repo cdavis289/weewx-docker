@@ -21,7 +21,7 @@ dependencies = [
     "pyusb",
     "setuptools",
     "urllib3>=2.8.0",
-    "weewx == 5.5.2",
+    "weewx == 5.6.0",
 ]
 description = "Containerized WeeWX"
 dynamic = ["version"]
