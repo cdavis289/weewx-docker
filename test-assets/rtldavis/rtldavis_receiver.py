@@ -188,6 +188,21 @@ class Receiver:
         self._missed_channels = set()
         self._reported = set()
         self._probation = None
+        # Observational counters only; never affect frame acceptance.
+        self.diagnostic_counts = {'burst_suppressed': 0,
+                                  'burst_identical': 0,
+                                  'burst_different': 0,
+                                  'timing_early_suppressed': 0,
+                                  'accepted': 0}
+        self._last_accepted_payload = {}
+        self.phase_c_diagnostics = None
+        self._phase_c_expected_visit = None
+        self._last_frame = None
+        self._sync_started = None
+        self._sync_loss_started = None
+        self._sync_reason = 'startup'
+        self.diagnostic_counts.update({'missed_predictions': 0, 'sync_losses': 0,
+                                       'sync_acquired': 0})
 
     def start(self, now):
         """Start listening from a new sample stream.
@@ -203,6 +218,7 @@ class Receiver:
         self._accepted = {}
         self._empty_periods = 0
         self._tunings = []
+        self._sync_reason = 'stream_start'
         self._synchronize(now)
 
     def feed(self, raw, end_time):
@@ -222,7 +238,20 @@ class Receiver:
         if not self._tunings or self._tunings[-1][1:] != (self.channel, self.frequency):
             self._tunings.append((self._demodulator.sample_count, self.channel, self.frequency))
             del self._tunings[:-8]
+        phase_c = self.phase_c_diagnostics
+        if phase_c is not None:
+            before_crc = dict(self._demodulator.diagnostic_counts)
         candidates = self._demodulator.feed(raw, self.shifts)
+        if phase_c is not None:
+            after_crc = self._demodulator.diagnostic_counts
+            phase_c.observe(
+                "demod_candidates", timestamp=end_time,
+                candidate_bursts=len(candidates),
+                crc_failed_attempts=after_crc.get("crc_failed_attempts", 0) - before_crc.get("crc_failed_attempts", 0),
+                crc_valid_attempts=after_crc.get("crc_valid_attempts", 0) - before_crc.get("crc_valid_attempts", 0),
+                zero_payload_attempts=after_crc.get("zero_payload_attempts", 0) - before_crc.get("zero_payload_attempts", 0),
+                wide_search=len(self.shifts) > 1,
+                syncing=self._syncing, locked=self.locked)
         end_index = self._demodulator.sample_count
         frames = []
         for candidate in candidates:
@@ -255,12 +284,62 @@ class Receiver:
         # A noisy burst can decode twice, even with two different CRC-valid
         # payloads. A transmitter never sends twice within 2.5 s.
         if previous is not None and now - previous < BURST_GUARD:
+            self.diagnostic_counts["burst_suppressed"] += 1
+            previous_payload = self._last_accepted_payload.get(transmitter)
+            category = ("burst_identical" if previous_payload == candidate.payload
+                        else "burst_different")
+            self.diagnostic_counts[category] += 1
+            if self.phase_c_diagnostics is not None:
+                self.phase_c_diagnostics.observe(
+                    "candidate_rejected", timestamp=now,
+                    reason=category, transmitter=transmitter + 1,
+                    rf_channel=channel, tuned_frequency_hz=frequency,
+                    frequency_error_hz=candidate.frequency_error)
             log.debug("ignoring second decode of a burst: %s", candidate.payload.hex())
             return None
+        # Phase C: do not let an implausibly early, CRC-valid candidate
+        # re-anchor the schedule or contaminate frequency learning.
+        # Search/reacquisition is deliberately exempt from this guard.
+        if not self._syncing and transmitter in self.index:
+            i = self.index[transmitter]
+            last = self._last_visit[i]
+            if last is not None:
+                period = transmitter_period(transmitter)
+                expected = last + period
+                # Advance past already missed periods. _timeout() also
+                # advances _last_visit during normal missed-frame handling.
+                while expected + RECEIVE_WINDOW < now:
+                    expected += period
+                if now < expected - 0.300:
+                    self.diagnostic_counts["timing_early_suppressed"] += 1
+                    if self.phase_c_diagnostics is not None:
+                        self.phase_c_diagnostics.observe(
+                            "candidate_rejected", timestamp=now,
+                            reason="timing_early_suppressed",
+                            transmitter=transmitter + 1,
+                            rf_channel=channel,
+                            tuned_frequency_hz=frequency,
+                            frequency_error_hz=candidate.frequency_error,
+                            expected_visit_monotonic=expected,
+                            early_by_ms=round((expected - now) * 1000, 3))
+                    log.warning(
+                        "ignoring early candidate for channel %d: %.1f ms "
+                        "before predicted visit (freq error %+.0f Hz)",
+                        transmitter + 1, (expected - now) * 1000,
+                        candidate.frequency_error)
+                    return None
         self._accepted[transmitter] = now
+        self._last_accepted_payload[transmitter] = candidate.payload
         # Another station's transmitter may be off by a different amount, and
         # its frames would keep the search from moving on.
         if transmitter not in self.index:
+            if self.phase_c_diagnostics is not None:
+                self.phase_c_diagnostics.observe(
+                    "candidate_rejected", timestamp=now,
+                    reason="unconfigured_transmitter",
+                    transmitter=transmitter + 1, rf_channel=channel,
+                    tuned_frequency_hz=frequency,
+                    frequency_error_hz=candidate.frequency_error)
             self._report_unconfigured(transmitter)
             return None
         self._heard = True
@@ -268,6 +347,18 @@ class Receiver:
                              frequency - self.frequencies[channel] + candidate.frequency_error)
         i = self.index[transmitter]
         self.counts[i] += 1
+        self.diagnostic_counts["accepted"] += 1
+        if self.phase_c_diagnostics is not None:
+            self.phase_c_diagnostics.observe(
+                "candidate_accepted", timestamp=now,
+                transmitter=transmitter + 1, rf_channel=channel,
+                tuned_frequency_hz=frequency,
+                frequency_error_hz=candidate.frequency_error,
+                measured_offset_hz=(frequency - self.frequencies[channel]
+                                    + candidate.frequency_error),
+                learned_offset_hz=offset, global_offset_hz=self.offset,
+                syncing=self._syncing, locked=self.locked)
+        self._last_frame = now
         self._missed[i] = 0
         hop = False
         if self._syncing:
@@ -279,6 +370,17 @@ class Receiver:
                     if len(self.transmitters) > 1:
                         log.info("Receiving all configured transmitters")
                     self._syncing = False
+                    self.diagnostic_counts['sync_acquired'] += 1
+                    self._record_sync_event(
+                        'synchronization_acquired', now,
+                        transmitter=transmitter + 1,
+                        reason=self._sync_reason,
+                        acquisition_seconds=(round(now - self._sync_started, 3)
+                                             if self._sync_started is not None else None),
+                        recovery_seconds=(round(now - self._sync_loss_started, 3)
+                                          if self._sync_loss_started is not None else None),
+                        frequency_offset_hz=round(self.offset, 1))
+                    self._sync_loss_started = None
                     hop = True
             else:
                 self._last_visit[i] = now
@@ -332,6 +434,12 @@ class Receiver:
         if hits + misses >= PROBATION_MINIMUM and hits * 3 < misses:
             log.info("Few frames arrive at %+.1f kHz; the first one probably came "
                      "from a neighbouring channel. Searching on.", self.offset / 1000)
+            self._record_sync_event(
+                'probation_failed', now, hits=hits, misses=misses,
+                frequency_offset_hz=round(self.offset, 1))
+            self._sync_reason = 'probation_failed'
+            self._sync_loss_started = now
+            self.diagnostic_counts['sync_losses'] += 1
             self._probation = None
             self.locked = False
             self.learned.clear()
@@ -352,9 +460,19 @@ class Receiver:
                  "channel in [Rtldavis], for example iss_channel = %d.",
                  transmitter + 1, configured, transmitter + 1)
 
+    def _record_sync_event(self, name, now, **fields):
+        """Record synchronization telemetry independently of A/B."""
+        if self.phase_c_diagnostics is not None:
+            self.phase_c_diagnostics.observe(
+                name, timestamp=now, **fields)
+
+        if name != "missed_frame_streak":
+            log.info("Receiver synchronization %s: %s", name, fields)
+
     def _synchronize(self, now):
         """Listen on the first channel of the sequence until each transmitter sends."""
         self._syncing = True
+        self._sync_started = now
         self._heard = False
         self._last_visit = [None] * len(self.transmitters)
         self._last_hop = [0] * len(self.transmitters)
@@ -401,6 +519,18 @@ class Receiver:
         self._next = i
         self._tune(hop, transmitter)
         self._deadline = visit + RECEIVE_WINDOW
+        if self.phase_c_diagnostics is not None:
+            self._phase_c_expected_visit = visit
+            self.phase_c_diagnostics.observe(
+                "hop_scheduled", timestamp=now,
+                transmitter=transmitter + 1,
+                rf_channel=self.channel,
+                target_frequency_hz=self.frequency,
+                expected_visit_monotonic=visit,
+                deadline_monotonic=self._deadline,
+                seconds_until_visit=visit - now,
+                wide_search=len(self.shifts) > 1,
+                frequency_offset_hz=self.frequency - self.frequencies[self.channel])
         log.debug("expecting channel %d in %.2f s on %d Hz", transmitter + 1,
                   visit - now, self.frequency)
 
@@ -416,6 +546,17 @@ class Receiver:
                 if self._empty_periods >= LOST_LOCK_PERIODS:
                     log.info("No Davis transmitter heard for %.0f s, searching the "
                              "frequency again", self._empty_periods * self.sync_period)
+                    self._record_sync_event(
+                        'frequency_lock_lost', now,
+                        empty_periods=self._empty_periods,
+                        frequency_offset_hz=round(self.offset, 1))
+                    self.diagnostic_counts['sync_losses'] += 1
+                    if self.phase_c_diagnostics is not None:
+                        self.phase_c_diagnostics.trigger(
+                            'frequency_lock_lost', empty_periods=self._empty_periods,
+                            frequency_offset_hz=round(self.offset, 1))
+                    self._sync_loss_started = now
+                    self._sync_reason = 'frequency_lock_lost'
                     self.locked = False
                     self.learned.clear()
                     self.search_base = self.offset
@@ -428,11 +569,36 @@ class Receiver:
         self._last_visit[i] += transmitter_period(transmitter)
         self._last_hop[i] = (self._last_hop[i] + 1) % len(self.pattern)
         self._missed[i] += 1
+        self.diagnostic_counts['missed_predictions'] += 1
+        if self._missed[i] in (1, 10, 25, 50):
+            self._record_sync_event(
+                'missed_frame_streak', now,
+                transmitter=transmitter + 1, missed_frames=self._missed[i],
+                expected_channel=self._expected[1], tuned_frequency_hz=self.frequency,
+                frequency_offset_hz=round(self.offset, 1),
+                seconds_since_last_frame=(round(now - self._last_frame, 3)
+                                          if self._last_frame is not None else None))
         self._missed_channels.add(self._expected)
         log.debug("missed frame %d in a row from channel %d", self._missed[i], transmitter + 1)
         if self._check_probation(now, hit=False):
             return
         if self._missed[i] > MAX_MISSED:
+            self.diagnostic_counts["sync_losses"] += 1
+            self._sync_loss_started = now
+            self._sync_reason = "consecutive_missed_frames"
+            if self.phase_c_diagnostics is not None:
+                self.phase_c_diagnostics.trigger(
+                    "consecutive_missed_frames", transmitter=transmitter + 1,
+                    missed_frames=self._missed[i],
+                    tuned_frequency_hz=self.frequency,
+                    frequency_offset_hz=round(self.offset, 1))
+            self._record_sync_event(
+                "synchronization_lost", now,
+                transmitter=transmitter + 1, missed_frames=self._missed[i],
+                tuned_frequency_hz=self.frequency,
+                frequency_offset_hz=round(self.offset, 1),
+                seconds_since_last_frame=(round(now - self._last_frame, 3)
+                                          if self._last_frame is not None else None))
             log.info("Lost transmitter on channel %d, synchronizing again", transmitter + 1)
             self._synchronize(now)
         else:
@@ -692,8 +858,17 @@ class Radio(threading.Thread):
         self._dongle = None
         self._problem = (None, 0)
         self._synchronous = False
+        self.diagnostic_counts = {
+            'usb_dropped_blocks': 0,
+            'usb_zero_blocks': 0,
+            'usb_stream_restarts': 0,
+            'usb_reconnections': 0,
+            'usb_tune_errors': 0,
+            'max_queue_depth': 0,
+        }
 
     def run(self):
+        connected_once = False
         try:
             while not self._stopping.is_set():
                 try:
@@ -704,6 +879,9 @@ class Radio(threading.Thread):
                     self._stopping.wait(self.RETRY)
                     continue
                 self._problem = (None, 0)
+                if connected_once:
+                    self.diagnostic_counts['usb_reconnections'] += 1
+                connected_once = True
                 try:
                     self._run_dongle(self._dongle)
                 except OSError as e:
@@ -739,6 +917,7 @@ class Radio(threading.Thread):
 
         def receive(data, arrival):
             if not data.strip(b'\0'):
+                self.diagnostic_counts['usb_zero_blocks'] += 1
                 empty[0] += 1
                 if empty[0] >= self.EMPTY_BLOCKS and not self._synchronous:
                     dongle.cancel()
@@ -746,7 +925,10 @@ class Radio(threading.Thread):
             empty[0] = 0
             try:
                 blocks.put_nowait((data, arrival))
+                self.diagnostic_counts['max_queue_depth'] = max(
+                    self.diagnostic_counts['max_queue_depth'], blocks.qsize())
             except queue.Full:
+                self.diagnostic_counts['usb_dropped_blocks'] += 1
                 dropped[0] += 1
 
         def stream():
@@ -762,8 +944,17 @@ class Radio(threading.Thread):
             dongle.configure(self.gain)
             self.receiver.start(time.monotonic())
             tuned = self.receiver.frequency
-            dongle.tune(tuned)
+            if self.receiver.phase_c_diagnostics is None:
+                dongle.tune(tuned)
+            else:
+                from user.rtldavis_phase_c_diagnostics import observe_hardware_tune
+                observe_hardware_tune(self.receiver.phase_c_diagnostics, dongle.tune,
+                                      tuned, self.receiver, reason="initial")
+            stream_started = False
             while True:
+                if stream_started:
+                    self.diagnostic_counts['usb_stream_restarts'] += 1
+                stream_started = True
                 del result[:]
                 with lock:
                     usb_state['running'] = True
@@ -777,13 +968,28 @@ class Radio(threading.Thread):
                             data, arrival = blocks.get(timeout=1)
                         except queue.Empty:
                             continue
-                        for frame in self.receiver.feed(data, arrival):
+                        if self.receiver.phase_c_diagnostics is None:
+                            frames = self.receiver.feed(data, arrival)
+                        else:
+                            from user.rtldavis_phase_c_diagnostics import observe_sample_processing
+                            frames = observe_sample_processing(
+                                self.receiver.phase_c_diagnostics,
+                                self.receiver.feed, data, arrival,
+                                queue_depth=blocks.qsize())
+                        for frame in frames:
                             self.frames.put(frame)
                         if self.receiver.frequency != tuned:
                             tuned = self.receiver.frequency
                             try:
-                                dongle.tune(tuned)
+                                if self.receiver.phase_c_diagnostics is None:
+                                    dongle.tune(tuned)
+                                else:
+                                    from user.rtldavis_phase_c_diagnostics import observe_hardware_tune
+                                    observe_hardware_tune(
+                                        self.receiver.phase_c_diagnostics, dongle.tune,
+                                        tuned, self.receiver, reason="hop")
                             except OSError as e:
+                                self.diagnostic_counts['usb_tune_errors'] += 1
                                 # The next hop retunes anyway; one failure is not fatal.
                                 log.warning("%s", e)
                         if dropped[0]:
