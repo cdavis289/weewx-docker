@@ -44,15 +44,25 @@ jobs:
           echo "Current release: ${current}"
           echo "Latest release: ${latest}"
 
+      - name: Verify currently pinned release
+        if: steps.versions.outputs.current != 'unreleased'
+        env:
+          CURRENT_RELEASE: ${{ steps.versions.outputs.current }}
+        run: ./update-rtldavis "$CURRENT_RELEASE"
+
       - name: Update RTL-Davis
         if: steps.versions.outputs.current != steps.versions.outputs.latest
-        run: ./update-rtldavis "${{ steps.versions.outputs.latest }}"
+        env:
+          LATEST_RELEASE: ${{ steps.versions.outputs.latest }}
+        run: ./update-rtldavis "$LATEST_RELEASE"
 
       - name: Validate updated driver
         if: steps.versions.outputs.current != steps.versions.outputs.latest
         run: |
           python3 -m py_compile test-assets/rtldavis/rtldavis*.py
           git diff --check
+          python3 tools/test-rtldavis-updater.py
+          python3 tools/validate-rtldavis.py
 
       - name: Build RTL-Davis image
         if: steps.versions.outputs.current != steps.versions.outputs.latest
@@ -64,49 +74,8 @@ jobs:
 
       - name: Verify RTL-Davis image
         if: steps.versions.outputs.current != steps.versions.outputs.latest
-        shell: bash
         run: |
-          set -Eeuo pipefail
-
-          expected="$(sed -n 's/^ARG RTL_DAVIS_REF=v//p' Dockerfile.rtldavis)"
-
-          docker run --rm \
-            --entrypoint /opt/venv/bin/python \
-            -e EXPECTED_VERSION="${expected}" \
-            weewx-rtldavis:update-test \
-            -c '
-          import ast
-          import os
-          from pathlib import Path
-
-          driver = Path(
-              "/opt/weewx-extensions/weewx-rtldavis/rtldavis.py"
-          ).read_text()
-
-          tree = ast.parse(driver)
-          versions = [
-              node.value.value
-              for node in tree.body
-              if isinstance(node, ast.Assign)
-              and any(
-                  isinstance(target, ast.Name)
-                  and target.id == "DRIVER_VERSION"
-                  for target in node.targets
-              )
-              and isinstance(node.value, ast.Constant)
-          ]
-
-          assert versions == [os.environ["EXPECTED_VERSION"]]
-          assert Path("/opt/weewx-extensions/weewx-rtldavis/rtldavis_receiver.py").is_file()
-          assert Path("/opt/weewx-extensions/weewx-rtldavis/rtldavis_dsp.py").is_file()
-          import numpy
-          import ctypes.util
-          assert ctypes.util.find_library("rtlsdr")
-          assert "stn_dict.get('\''hardware_name'\'', '\''Rtldavis'\'')" in driver
-          assert "return self._hardware_name" in driver
-
-          print("RTL-Davis image validation passed.")
-          '
+          bash tools/test-rtldavis-image.sh weewx-rtldavis:update-test
 
       - name: Create update pull request
         if: steps.versions.outputs.current != steps.versions.outputs.latest
@@ -123,7 +92,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git fetch origin\n\n          git checkout -B "${branch}"
+          git fetch origin
+
+          git checkout -B "${branch}"
 
           git add Dockerfile.rtldavis test-assets/rtldavis/
           git commit -m "Update RTL-Davis to ${NEW_VERSION}"

@@ -26,7 +26,7 @@ MODULES = (
     "rtldavis_wind_validation.py",
 )
 
-TAG_PATTERN = r"v([0-9]+\\.[0-9]+\\.[0-9]+)-prod\\.([1-9][0-9]*)"
+TAG_PATTERN = r"v([0-9]+\.[0-9]+\.[0-9]+)-prod\.([1-9][0-9]*)"
 
 
 def fail(message):
@@ -107,6 +107,13 @@ def main():
     )
     current_tag = current.get("release", "unreleased")
 
+    current_version = tuple(
+        map(int, current["driver_version"].split("."))
+    )
+
+    if key[:3] < current_version:
+        fail("Automatic driver downgrade is not permitted")
+
     if current_tag != "unreleased" and key < release_key(current_tag):
         fail("Automatic driver downgrade is not permitted")
 
@@ -164,22 +171,22 @@ def main():
 
                 text = replace_once(
                     text,
-                    "        stn_dict = config_dict.get(DRIVER_NAME, {})\\n",
-                    "        stn_dict = config_dict.get(DRIVER_NAME, {})\\n"
+                    "        stn_dict = config_dict.get(DRIVER_NAME, {})\n",
+                    "        stn_dict = config_dict.get(DRIVER_NAME, {})\n"
                     "        self._hardware_name = stn_dict.get("
-                    "'hardware_name', 'Rtldavis')\\n",
+                    "'hardware_name', 'Rtldavis')\n",
                 )
 
                 text = replace_once(
                     text,
-                    "    def hardware_name(self):\\n"
-                    "        return 'Rtldavis'\\n",
-                    "    def hardware_name(self):\\n"
-                    "        return self._hardware_name\\n",
+                    "    def hardware_name(self):\n"
+                    "        return 'Rtldavis'\n",
+                    "    def hardware_name(self):\n"
+                    "        return self._hardware_name\n",
                 )
 
-            text = "\\n".join(
-                line.rstrip(" \\t") for line in text.split("\\n")
+            text = "\n".join(
+                line.rstrip(" \t") for line in text.split("\n")
             )
 
             compile(text, name, "exec")
@@ -215,7 +222,7 @@ def main():
     }
 
     changes[DESTINATION / "source-manifest.json"] = (
-        json.dumps(manifest, indent=2, sort_keys=True) + "\\n"
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     ).encode("utf-8")
 
     for path, content in changes.items():
