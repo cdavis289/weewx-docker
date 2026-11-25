@@ -4,7 +4,13 @@ FROM ${WEEWX_BASE_IMAGE}
 USER root
 
 # Python-only RTL-Davis continuation (no Go receiver process).
-ARG RTL_DAVIS_REF=v0.22.2
+ARG RTL_DAVIS_REF=v0.23.0
+ARG RTL_DAVIS_REPOSITORY=cdavis289/weewx-rtldavis-py
+ARG RTL_DAVIS_COMMIT=dacc6c0b1a48c0cfdb34254260c8f2c028dd4cbc
+
+LABEL io.github.rtldavis.repository="${RTL_DAVIS_REPOSITORY}" \
+      io.github.rtldavis.version="${RTL_DAVIS_REF}" \
+      io.github.rtldavis.revision="${RTL_DAVIS_COMMIT}"
 # The base image sets PIP_TARGET=/data/lib/python/site-packages.
 # Installing there would be hidden by WeeWX's /data runtime bind mount.
 RUN env -u PIP_TARGET /opt/venv/bin/python -m pip install --no-cache-dir 'numpy>=2,<3'
@@ -29,7 +35,15 @@ RUN command -v rtl_test \
  && /opt/venv/bin/python -c 'import numpy; print(numpy.__version__)'
 
 # Vendor the tested continuation driver with the hardware_name patch.
-COPY test-assets/rtldavis/rtldavis.py test-assets/rtldavis/rtldavis_receiver.py test-assets/rtldavis/rtldavis_dsp.py /opt/weewx-extensions/weewx-rtldavis/
+COPY test-assets/rtldavis/rtldavis.py \
+     test-assets/rtldavis/rtldavis_receiver.py \
+     test-assets/rtldavis/rtldavis_dsp.py \
+     test-assets/rtldavis/rtldavis_gust_diagnostics.py \
+     test-assets/rtldavis/rtldavis_frame_diagnostics.py \
+     test-assets/rtldavis/rtldavis_phase_c_diagnostics.py \
+     test-assets/rtldavis/rtldavis_diagnostic_storage.py \
+     test-assets/rtldavis/rtldavis_wind_validation.py \
+     /opt/weewx-extensions/weewx-rtldavis/
 
 # Vendor MQTTSubscribe into the image.
 # This preserves the manually installed service across image rebuilds.

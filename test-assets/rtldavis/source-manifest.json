@@ -1,0 +1,43 @@
+{
+  "commit": "dacc6c0b1a48c0cfdb34254260c8f2c028dd4cbc",
+  "customizations": [
+    "Configurable hardware_name in rtldavis.py",
+    "Trailing whitespace normalization"
+  ],
+  "driver_version": "0.23.0",
+  "modules": {
+    "rtldavis.py": {
+      "source_sha256": "684eb27cf1beb7292745a5778b32f9e19f4ecd09721118653d9e3f98f962fd7b",
+      "vendored_sha256": "bd52ca31d4abb0b75e3cca63cafad130a1edfc2b5ed1f1f63162eda079b07b7f"
+    },
+    "rtldavis_diagnostic_storage.py": {
+      "source_sha256": "f8824f1e69f6b81b457066fa80c530db6671415ff64e2a6a2bf61b194fd7b0a3",
+      "vendored_sha256": "f8824f1e69f6b81b457066fa80c530db6671415ff64e2a6a2bf61b194fd7b0a3"
+    },
+    "rtldavis_dsp.py": {
+      "source_sha256": "c3c640456e90b20f093c6c9166f9be30658acdc365657e20853f034a22ebfd03",
+      "vendored_sha256": "c3c640456e90b20f093c6c9166f9be30658acdc365657e20853f034a22ebfd03"
+    },
+    "rtldavis_frame_diagnostics.py": {
+      "source_sha256": "c239760473220062d010378cec831ab5775005ba89365a55266290fd8b4886a4",
+      "vendored_sha256": "c239760473220062d010378cec831ab5775005ba89365a55266290fd8b4886a4"
+    },
+    "rtldavis_gust_diagnostics.py": {
+      "source_sha256": "603bae60c966369d2be94035cac34f6838e8332ff8307a512478d9778c3ee8c6",
+      "vendored_sha256": "603bae60c966369d2be94035cac34f6838e8332ff8307a512478d9778c3ee8c6"
+    },
+    "rtldavis_phase_c_diagnostics.py": {
+      "source_sha256": "404dba815aa3bd19c67add7316d34775a3a0f508a854bcbe3daebf3c0167d11d",
+      "vendored_sha256": "404dba815aa3bd19c67add7316d34775a3a0f508a854bcbe3daebf3c0167d11d"
+    },
+    "rtldavis_receiver.py": {
+      "source_sha256": "2cd4c93541f8d4ab3e11234dfa2fe48d139aa08d50709b58155dacd7a0bc2385",
+      "vendored_sha256": "2cd4c93541f8d4ab3e11234dfa2fe48d139aa08d50709b58155dacd7a0bc2385"
+    },
+    "rtldavis_wind_validation.py": {
+      "source_sha256": "594a64414aecc5980bffb4e9d5498b6a7f87cffec6f0b003ca4168555f629327",
+      "vendored_sha256": "594a64414aecc5980bffb4e9d5498b6a7f87cffec6f0b003ca4168555f629327"
+    }
+  },
+  "repository": "cdavis289/weewx-rtldavis-py"
+}
