@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate standalone RTL-Davis source integrity."""
 
+# Standard Python Libraries
 import argparse
 import ast
 import hashlib
@@ -23,6 +24,7 @@ MODULES = {
 
 
 def main():
+    """Validate driver integrity and optional imports."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--manifest",
@@ -39,24 +41,32 @@ def main():
     manifest = json.loads(Path(args.manifest).read_text())
     root = Path(args.directory).resolve()
 
-    assert manifest["repository"] == "cdavis289/weewx-rtldavis-py"
-    assert re.fullmatch(r"[0-9a-f]{40}", manifest["commit"])
-    assert set(manifest["modules"]) == MODULES
+    if not (manifest["repository"] == "cdavis289/weewx-rtldavis-py"):
+        raise SystemExit(
+            "Validation failed: manifest['repository'] == 'cdavis289/weewx-rtldavis-py'"
+        )
+    if not (re.fullmatch("[0-9a-f]{40}", manifest["commit"])):
+        raise SystemExit(
+            "Validation failed: re.fullmatch('[0-9a-f]{40}', manifest['commit'])"
+        )
+    if not (set(manifest["modules"]) == MODULES):
+        raise SystemExit("Validation failed: set(manifest['modules']) == MODULES")
 
     actual = {p.name for p in root.glob("rtldavis*.py")}
-    assert actual == MODULES, actual
+    if not (actual == MODULES):
+        raise SystemExit(actual)
 
     for name in sorted(MODULES):
         path = root / name
         content = path.read_bytes()
         hashes = manifest["modules"][name]
 
-        assert re.fullmatch(
-            r"[0-9a-f]{64}", hashes["source_sha256"]
-        )
-        assert hashlib.sha256(content).hexdigest() == (
-            hashes["vendored_sha256"]
-        ), name
+        if not (re.fullmatch("[0-9a-f]{64}", hashes["source_sha256"])):
+            raise SystemExit(
+                "Validation failed: re.fullmatch('[0-9a-f]{64}', hashes['source_sha256'])"
+            )
+        if not (hashlib.sha256(content).hexdigest() == hashes["vendored_sha256"]):
+            raise SystemExit(name)
 
         compile(content, name, "exec")
         print("Verified:", name)
@@ -69,14 +79,14 @@ def main():
         for node in tree.body
         if isinstance(node, ast.Assign)
         and any(
-            isinstance(t, ast.Name)
-            and t.id == "DRIVER_VERSION"
-            for t in node.targets
+            isinstance(t, ast.Name) and t.id == "DRIVER_VERSION" for t in node.targets
         )
     ]
 
-    assert versions == [manifest["driver_version"]]
-    assert "return self._hardware_name" in driver
+    if not (versions == [manifest["driver_version"]]):
+        raise SystemExit("Validation failed: versions == [manifest['driver_version']]")
+    if not ("return self._hardware_name" in driver):
+        raise SystemExit("Validation failed: 'return self._hardware_name' in driver")
 
     if args.dockerfile:
         docker = Path(args.dockerfile).read_text()
@@ -88,20 +98,21 @@ def main():
         }
 
         for name, value in expected.items():
-            matches = re.findall(
-                rf"^ARG {name}=(.*)$", docker, re.MULTILINE
-            )
-            assert matches == [value], name
+            matches = re.findall(rf"^ARG {name}=(.*)$", docker, re.MULTILINE)
+            if not (matches == [value]):
+                raise SystemExit(name)
 
     if args.imports:
-        assert root.name == "user", root
+        if not (root.name == "user"):
+            raise SystemExit(root)
         sys.path.insert(0, str(root.parent))
 
         for name in sorted(MODULES):
-            module = importlib.import_module(
-                "user." + Path(name).stem
-            )
-            assert Path(module.__file__).resolve() == root / name
+            module = importlib.import_module("user." + Path(name).stem)
+            if not (Path(module.__file__).resolve() == root / name):
+                raise SystemExit(
+                    "Validation failed: Path(module.__file__).resolve() == root / name"
+                )
             print("Imported:", module.__name__)
 
     print("RTL-Davis integrity validation passed.")

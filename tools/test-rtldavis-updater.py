@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline regression tests for the production release updater."""
 
+# Standard Python Libraries
 import json
 from pathlib import Path
 import runpy
@@ -17,6 +18,7 @@ namespace = main.__globals__
 
 
 def release(tag, draft=False, prerelease=False):
+    """Construct mock GitHub release metadata."""
     return {
         "tag_name": tag,
         "draft": draft,
@@ -25,8 +27,10 @@ def release(tag, draft=False, prerelease=False):
 
 
 class UpdaterTests(unittest.TestCase):
+    """Test production release selection and safeguards."""
 
     def test_valid_tags(self):
+        """Accept supported production release tags."""
         self.assertEqual(
             release_key("v0.23.0-prod.1"),
             (0, 23, 0, 1),
@@ -37,6 +41,7 @@ class UpdaterTests(unittest.TestCase):
         )
 
     def test_invalid_tags(self):
+        """Reject unsupported release tags."""
         for tag in (
             "v0.23.0",
             "v0.23.0-prod.0",
@@ -49,12 +54,14 @@ class UpdaterTests(unittest.TestCase):
                     release_key(tag)
 
     def test_numeric_release_order(self):
+        """Compare release revisions numerically."""
         self.assertGreater(
             release_key("v0.23.0-prod.10"),
             release_key("v0.23.0-prod.2"),
         )
 
     def test_latest_approved_release(self):
+        """Select the latest approved release."""
         releases = [
             release("v0.23.0"),
             release("v0.23.0-prod.2"),
@@ -67,11 +74,10 @@ class UpdaterTests(unittest.TestCase):
             namespace,
             {"fetch_json": lambda url: releases},
         ):
-            self.assertEqual(
-                latest_release(), "v0.23.0-prod.10"
-            )
+            self.assertEqual(latest_release(), "v0.23.0-prod.10")
 
     def test_no_approved_releases(self):
+        """Handle an empty approved release list."""
         with patch.dict(
             namespace,
             {"fetch_json": lambda url: [release("v0.23.0")]},
@@ -79,24 +85,26 @@ class UpdaterTests(unittest.TestCase):
             self.assertIsNone(latest_release())
 
     def run_update(self, current, requested, commit=None):
+        """Exercise the updater without network access."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             manifest = root / "source-manifest.json"
             manifest.write_text(json.dumps(current))
 
-            with patch.dict(
-                namespace,
-                {
-                    "DESTINATION": root,
-                    "fetch_json": lambda url: release(requested),
-                },
-            ), patch.object(
-                sys, "argv", ["update-rtldavis", requested]
-            ), patch(
-                "subprocess.run"
-            ) as clone, patch(
-                "subprocess.check_output",
-                return_value=commit or "a" * 40,
+            with (
+                patch.dict(
+                    namespace,
+                    {
+                        "DESTINATION": root,
+                        "fetch_json": lambda url: release(requested),
+                    },
+                ),
+                patch.object(sys, "argv", ["update-rtldavis", requested]),
+                patch("subprocess.run"),
+                patch(
+                    "subprocess.check_output",
+                    return_value=commit or "a" * 40,
+                ),
             ):
                 try:
                     main()
@@ -107,6 +115,7 @@ class UpdaterTests(unittest.TestCase):
                     )
 
     def test_downgrade_rejected(self):
+        """Reject older production releases."""
         with self.assertRaisesRegex(SystemExit, "downgrade"):
             self.run_update(
                 {
@@ -118,6 +127,7 @@ class UpdaterTests(unittest.TestCase):
             )
 
     def test_unreleased_downgrade_rejected(self):
+        """Protect the initial driver pin."""
         with self.assertRaisesRegex(SystemExit, "downgrade"):
             self.run_update(
                 {
@@ -129,6 +139,7 @@ class UpdaterTests(unittest.TestCase):
             )
 
     def test_moved_tag_rejected(self):
+        """Reject changes to an installed tag."""
         with self.assertRaisesRegex(SystemExit, "tag has moved"):
             self.run_update(
                 {
@@ -141,6 +152,7 @@ class UpdaterTests(unittest.TestCase):
             )
 
     def test_same_release_is_noop(self):
+        """Leave an installed release unchanged."""
         self.run_update(
             {
                 "release": "v0.23.0-prod.1",

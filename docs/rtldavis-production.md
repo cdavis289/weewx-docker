@@ -1,9 +1,9 @@
-# RTL-Davis production maintenance
+# RTL-Davis production maintenance #
 
 The Docker image uses the standalone Python driver maintained at
 cdavis289/weewx-rtldavis-py.
 
-## Source provenance
+## Source provenance ##
 
 Dockerfile.rtldavis records the driver version, custom production
 release, repository and exact source commit.
@@ -11,7 +11,7 @@ release, repository and exact source commit.
 The source manifest records SHA-256 checksums for all eight driver
 modules, before and after Docker-specific customizations.
 
-## Automated updates
+## Automated updates ##
 
 Only published stable vX.Y.Z-prod.N releases from the maintained
 Python fork are eligible for automated updates.
@@ -24,25 +24,31 @@ GitHub Actions workflow. Upstream releases are not directly vendored.
 
 Automated updates create pull requests. They do not deploy containers.
 
-## Local validation
+## Local validation ##
 
 Run from the Docker repository root:
 
-    python3 tools/test-rtldavis-updater.py
-    python3 tools/validate-rtldavis.py --dockerfile Dockerfile.rtldavis
+```bash
+python3 tools/test-rtldavis-updater.py
+python3 tools/validate-rtldavis.py --dockerfile Dockerfile.rtldavis
+```
 
 Build a candidate:
 
-    docker build -f Dockerfile.rtldavis -t weewx-rtldavis:candidate .
+```bash
+docker build -f Dockerfile.rtldavis -t weewx-rtldavis:candidate .
+```
 
 Validate the candidate:
 
-    bash tools/test-rtldavis-image.sh weewx-rtldavis:candidate
+```bash
+bash tools/test-rtldavis-image.sh weewx-rtldavis:candidate
+```
 
 The smoke test uses disposable containers and temporary data.
 It does not access the production database or USB receiver.
 
-## Deployment
+## Deployment ##
 
 Complete live receiver validation before publishing the first
 production release or replacing the production receiver.

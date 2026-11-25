@@ -8,32 +8,32 @@ TEST_DATA="$(mktemp -d)"
 CONTAINER=""
 
 cleanup() {
-    if [[ -n "${CONTAINER}" ]]; then
-        docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
-    fi
+  if [[ -n "${CONTAINER}" ]]; then
+    docker rm -f "${CONTAINER}" > /dev/null 2>&1 || true
+  fi
 
-    docker run --rm \
-        --user 0 \
-        --entrypoint /bin/sh \
-        -v "${TEST_DATA}:/cleanup" \
-        "${IMAGE}" \
-        -c 'find /cleanup -mindepth 1 -delete' || true
+  docker run --rm \
+    --user 0 \
+    --entrypoint /bin/sh \
+    -v "${TEST_DATA}:/cleanup" \
+    "${IMAGE}" \
+    -c 'find /cleanup -mindepth 1 -delete' || true
 
-    rmdir "${TEST_DATA}" || true
+  rmdir "${TEST_DATA}" || true
 }
 
 trap cleanup EXIT
 
 echo "=== SOURCE INTEGRITY ==="
 python3 tools/validate-rtldavis.py \
-    --dockerfile Dockerfile.rtldavis
+  --dockerfile Dockerfile.rtldavis
 
 echo "=== IMAGE PROVENANCE ==="
 docker image inspect "${IMAGE}" \
-    --format '{{json .Config.Labels}}' \
-    > "${TEST_DATA}/labels.json"
+  --format '{{json .Config.Labels}}' \
+  > "${TEST_DATA}/labels.json"
 
-python3 - "${TEST_DATA}/labels.json" <<'PYTHON'
+python3 - "${TEST_DATA}/labels.json" << 'PYTHON'
 import json
 import sys
 from pathlib import Path
@@ -59,61 +59,61 @@ PYTHON
 echo "=== IMAGE MODULE CHECKSUMS ==="
 
 docker run --rm \
-    --entrypoint /opt/venv/bin/python \
-    -v "${ROOT}/tools/validate-rtldavis.py:/tmp/validate.py:ro" \
-    -v "${ROOT}/test-assets/rtldavis/source-manifest.json:/tmp/manifest.json:ro" \
-    "${IMAGE}" \
-    /tmp/validate.py \
-    --manifest /tmp/manifest.json \
-    --directory /opt/weewx-extensions/weewx-rtldavis
+  --entrypoint /opt/venv/bin/python \
+  -v "${ROOT}/tools/validate-rtldavis.py:/tmp/validate.py:ro" \
+  -v "${ROOT}/test-assets/rtldavis/source-manifest.json:/tmp/manifest.json:ro" \
+  "${IMAGE}" \
+  /tmp/validate.py \
+  --manifest /tmp/manifest.json \
+  --directory /opt/weewx-extensions/weewx-rtldavis
 
 echo "=== STARTUP OVERLAY ==="
 
 mkdir -p "${TEST_DATA}/skins/new-belchertown"
 
 printf '%s\n' \
-    '# CUSTOM TEST CHARTS FILE' \
-    '[test_marker]' \
-    '    value = preserve_me' \
-    > "${TEST_DATA}/skins/new-belchertown/charts.conf"
+  '# CUSTOM TEST CHARTS FILE' \
+  '[test_marker]' \
+  '    value = preserve_me' \
+  > "${TEST_DATA}/skins/new-belchertown/charts.conf"
 
 CONTAINER="$(docker create \
-    --entrypoint /usr/local/bin/start-weewx-rtldavis-overlay \
-    -v "${TEST_DATA}:/data" \
-    "${IMAGE}")"
+  --entrypoint /usr/local/bin/start-weewx-rtldavis-overlay \
+  -v "${TEST_DATA}:/data" \
+  "${IMAGE}")"
 
 timeout 60s docker start -a "${CONTAINER}" \
-    > "${TEST_DATA}/startup.log" 2>&1 || true
+  > "${TEST_DATA}/startup.log" 2>&1 || true
 
-docker rm -f "${CONTAINER}" >/dev/null
+docker rm -f "${CONTAINER}" > /dev/null
 CONTAINER=""
 
 grep -q "Installing/updating Belchertown New Python extension" \
-    "${TEST_DATA}/startup.log"
+  "${TEST_DATA}/startup.log"
 
 grep -q "preserve_me" \
-    "${TEST_DATA}/skins/new-belchertown/charts.conf"
+  "${TEST_DATA}/skins/new-belchertown/charts.conf"
 
 echo "=== INSTALLED MODULES AND IMPORTS ==="
 
 docker run --rm \
-    --entrypoint /opt/venv/bin/python \
-    -v "${TEST_DATA}:/data" \
-    -v "${ROOT}/tools/validate-rtldavis.py:/tmp/validate.py:ro" \
-    -v "${ROOT}/test-assets/rtldavis/source-manifest.json:/tmp/manifest.json:ro" \
-    "${IMAGE}" \
-    /tmp/validate.py \
-    --manifest /tmp/manifest.json \
-    --directory /data/bin/user \
-    --imports
+  --entrypoint /opt/venv/bin/python \
+  -v "${TEST_DATA}:/data" \
+  -v "${ROOT}/tools/validate-rtldavis.py:/tmp/validate.py:ro" \
+  -v "${ROOT}/test-assets/rtldavis/source-manifest.json:/tmp/manifest.json:ro" \
+  "${IMAGE}" \
+  /tmp/validate.py \
+  --manifest /tmp/manifest.json \
+  --directory /data/bin/user \
+  --imports
 
 echo "=== RUNTIME DEPENDENCIES ==="
 
 docker run --rm \
-    --entrypoint /bin/sh \
-    -v "${TEST_DATA}:/data" \
-    "${IMAGE}" \
-    -ec '
+  --entrypoint /bin/sh \
+  -v "${TEST_DATA}:/data" \
+  "${IMAGE}" \
+  -ec '
         command -v rtl_test
         command -v rtl_fm
         test ! -e /usr/local/bin/rtldavis
