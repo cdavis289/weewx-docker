@@ -1,0 +1,45 @@
+---
+name: Check upstream RTL-Davis releases
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "37 11 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Compare upstream version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          current="$(sed -n 's/^ARG RTL_DAVIS_REF=//p' Dockerfile.rtldavis)"
+
+          latest="$(gh api repos/weewx-packages/weewx-rtldavis/releases/latest --jq .tag_name)"
+
+          echo "Current driver: ${current}"
+          echo "Latest upstream: ${latest}"
+
+          {
+            echo "## RTL-Davis upstream release check"
+            echo ""
+            echo "- Current driver: ${current}"
+            echo "- Latest upstream: ${latest}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "${current}" != "${latest}" ]]; then
+            echo "::warning::Upstream RTL-Davis version differs. Review manually."
+            echo "Manual upstream review required." >> "$GITHUB_STEP_SUMMARY"
+          fi

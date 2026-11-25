@@ -128,6 +128,10 @@ class Demodulator:
         self.settled = 0
         self._branches = {}
         self._pending = []
+        # Threshold attempts, not unique over-the-air packets.
+        self.diagnostic_counts = {'crc_failed_attempts': 0,
+                                  'crc_valid_attempts': 0,
+                                  'zero_payload_attempts': 0}
 
     def feed(self, raw, shifts=(0,)):
         """Demodulate one block and return the bursts completed before it.
@@ -224,7 +228,8 @@ class Demodulator:
                 thresholds = [0.0] if fixed[start] else []
                 if adaptive[start]:
                     thresholds.append(mean[start])
-                payload = _decode(tail[start:start + FRAME_LENGTH:SYMBOL_LENGTH], thresholds)
+                payload = _decode(tail[start:start + FRAME_LENGTH:SYMBOL_LENGTH], thresholds,
+                                  self.diagnostic_counts)
                 if payload is None:
                     continue
                 # The discriminator returns radians per sample; a negative mean
@@ -238,7 +243,7 @@ class Demodulator:
         return found
 
 
-def _decode(symbols, thresholds):
+def _decode(symbols, thresholds, diagnostic_counts=None):
     """Return the CRC-valid payload of 80 symbol samples, or None.
 
     Args:
@@ -250,7 +255,12 @@ def _decode(symbols, thresholds):
         payload = bytes(_REVERSED[value] for value in packed[2:])
         # Eight zero bytes pass the CRC. They are what a threshold taken from
         # noise next to a burst decodes, never a Davis frame.
-        if crc16(payload) == 0 and any(payload):
+        valid_crc = crc16(payload) == 0
+        if diagnostic_counts is not None:
+            key = ('crc_failed_attempts' if not valid_crc else
+                   'crc_valid_attempts' if any(payload) else 'zero_payload_attempts')
+            diagnostic_counts[key] += 1
+        if valid_crc and any(payload):
             return payload
     return None
 

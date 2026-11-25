@@ -24,6 +24,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # tag=v7.0.0
 
+      - name: Validate vendored driver and updater
+        run: |
+          python3 tools/test-rtldavis-updater.py
+          python3 tools/validate-rtldavis.py
+
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # tag=v4.6.0
         with:
@@ -184,3 +189,8 @@ jobs:
             "${TEST_DATA}/skins/new-belchertown/charts.conf"
           grep -q "preserve_me" \
             "${TEST_DATA}/skins/new-belchertown/charts.conf"
+
+      - name: Verify complete driver integrity and imports
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+        run: bash tools/test-rtldavis-image.sh "$IMAGE_REF"
