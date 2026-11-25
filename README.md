@@ -13,6 +13,49 @@
 This docker container can be used to quickly get a
 [WeeWX](http://weewx.com) instance up and running.
 
+## Available images ##
+
+This repository publishes two images to the [GitHub Container Registry](https://github.com/cdavis289/weewx-docker/pkgs):
+
+| Image | Purpose |
+| --- | --- |
+| `ghcr.io/cdavis289/weewx:5.6.0` | Base WeeWX 5.6.0 image for conventional station drivers. |
+| `ghcr.io/cdavis289/weewx-rtldavis:5.6.0` | WeeWX 5.6.0 with the maintained **Python RTL-Davis** receiver and the extensions listed below. |
+
+The RTL-Davis image uses [cdavis289/weewx-rtldavis-py](https://github.com/cdavis289/weewx-rtldavis-py), pinned to the published [`v0.23.0-prod.1` driver release](https://github.com/cdavis289/weewx-rtldavis-py/releases/tag/v0.23.0-prod.1). It runs the receiver **inside WeeWX** using an RTL-SDR USB device; no separate Go receiver is needed.
+
+The RTL-Davis image also includes MQTTSubscribe, the maintained WeeWX MQTT extension, and Belchertown New. At startup it installs or updates the vendored RTL-Davis and MQTT extension files in `/data/bin/user` and the Belchertown New skin in `/data/skins/new-belchertown`. It preserves an existing `charts.conf` but may replace other files at those paths. Back up the `/data` directory before changing image versions, and review [RTL-Davis production maintenance](docs/rtldavis-production.md) for build and validation commands.
+
+For a reproducible deployment, use a versioned image tag such as `:5.6.0`; `:latest` follows the newest full release and can change.
+
+## Running Python RTL-Davis ##
+
+Use the RTL-Davis variant for Davis wireless stations received through an RTL-SDR dongle. This is a **separate example** from the base WeeWX image below:
+
+```yaml
+services:
+  weewx:
+    image: ghcr.io/cdavis289/weewx-rtldavis:5.6.0
+    pull_policy: never
+    restart: unless-stopped
+    stop_grace_period: 90s
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    volumes:
+      - ./data:/data
+```
+
+Pull the selected image explicitly before starting when using `pull_policy: never`:
+
+```sh
+docker pull ghcr.io/cdavis289/weewx-rtldavis:5.6.0
+docker compose up -d --no-deps --pull never weewx
+```
+
+Provide appropriate USB device permissions for your host and container, and configure `[Rtldavis]` in `data/weewx.conf` with `driver = user.rtldavis`, the correct frequency plan and ISS channel, and optionally a stable dongle serial number via `device`. See the [Python driver configuration reference](https://github.com/cdavis289/weewx-rtldavis-py/blob/main/docs/configuration.md).
+
+The additional MQTT and Belchertown services require configuration in `weewx.conf`; bundling their files does **not** configure a broker, credentials, report skin, or topics automatically.
+
 ## Running ##
 
 The easiest way to start the container is to create a
@@ -97,7 +140,7 @@ chown 1234:1234 data
     docker compose down
     ```
 
-1. Pull the new images from the Docker hub:
+1. Pull the selected image from GHCR (if your service uses \`pull_policy: never\`, pull it explicitly with \`docker pull\` before recreating the service):
 
     ```console
     docker compose pull
@@ -166,13 +209,17 @@ docker compose run --rm --entrypoint pip weewx \
 
 | Image:tag | Description |
 | --- | --- |
-| `ghcr.io/cdavis289/weewx:5` | Latest image matching the major version. |
-| `ghcr.io/cdavis289/weewx:5.6` | Latest image matching the major and minor version. |
-| `ghcr.io/cdavis289/weewx:5.6.0` | Exact image version. |
+| `ghcr.io/cdavis289/weewx:5.6.0` | WeeWX 5.6.0 base release. |
+| `ghcr.io/cdavis289/weewx-rtldavis:5.6.0` | WeeWX 5.6.0 plus Python RTL-Davis v0.23.0-prod.1. |
+| `ghcr.io/cdavis289/weewx:5` | Moving base-image major-version tag. |
+| `ghcr.io/cdavis289/weewx-rtldavis:latest` | Moving RTL-Davis tag for the newest full release. |
+
+The two image families have separate packages and support versioned release tags. Publishing a new release may move `latest`; a running container does not change until it is recreated from a new image.
 
 See the
-[GHCR package](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx)
-for all supported tags.
+[base image](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx) and
+[RTL-Davis image](https://github.com/cdavis289/weewx-docker/pkgs/container/weewx-rtldavis)
+packages for available tags.
 
 ## Volumes ##
 
