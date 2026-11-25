@@ -22,43 +22,27 @@ jobs:
           ref: develop
           token: ${{ secrets.AUTOMATION_TOKEN }}
 
-      - name: Get current and latest stable versions
+      - name: Get current and latest production releases
         id: versions
         shell: bash
         run: |
           set -Eeuo pipefail
 
-          current="$(sed -n 's/^ARG RTL_DAVIS_REF=//p' Dockerfile.rtldavis)"
+          current="$(sed -n 's/^ARG RTL_DAVIS_RELEASE=//p' Dockerfile.rtldavis)"
           test -n "${current}"
 
-          latest="$(
-            python3 - <<'PY'
-          import json
-          import urllib.request
+          latest="$(./update-rtldavis --latest)"
 
-          url = (
-              "https://api.github.com/repos/"
-              "weewx-packages/weewx-rtldavis/releases/latest"
-          )
-          request = urllib.request.Request(
-              url, headers={"User-Agent": "weewx-docker-rtldavis-check"}
-          )
-
-          with urllib.request.urlopen(request, timeout=30) as response:
-              release = json.load(response)
-
-          if release.get("draft") or release.get("prerelease"):
-              raise SystemExit("Latest release is not stable")
-
-          print(release["tag_name"])
-          PY
-          )"
+          if [[ -z "${latest}" ]]; then
+            echo "No approved production releases found."
+            latest="${current}"
+          fi
 
           echo "current=${current}" >> "$GITHUB_OUTPUT"
           echo "latest=${latest}" >> "$GITHUB_OUTPUT"
 
-          echo "Current RTL-Davis: ${current}"
-          echo "Latest RTL-Davis:  ${latest}"
+          echo "Current release: ${current}"
+          echo "Latest release: ${latest}"
 
       - name: Update RTL-Davis
         if: steps.versions.outputs.current != steps.versions.outputs.latest
@@ -84,8 +68,7 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          expected="${{ steps.versions.outputs.latest }}"
-          expected="${expected#v}"
+          expected="$(sed -n 's/^ARG RTL_DAVIS_REF=v//p' Dockerfile.rtldavis)"
 
           docker run --rm \
             --entrypoint /opt/venv/bin/python \
@@ -140,9 +123,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git checkout -B "${branch}"
+          git fetch origin\n\n          git checkout -B "${branch}"
 
-          git add Dockerfile.rtldavis test-assets/rtldavis/rtldavis*.py
+          git add Dockerfile.rtldavis test-assets/rtldavis/
           git commit -m "Update RTL-Davis to ${NEW_VERSION}"
           git push --force-with-lease origin "${branch}"
 
@@ -164,11 +147,11 @@ jobs:
             --base develop \
             --head "${branch}" \
             --title "Update RTL-Davis to ${NEW_VERSION}" \
-            --body "Automated stable RTL-Davis update from ${OLD_VERSION} to ${NEW_VERSION}.
+            --body "Automated custom production RTL-Davis update from ${OLD_VERSION} to ${NEW_VERSION}.
 
           Validation completed before creating this PR:
 
-          - upstream stable release verified
+          - custom production release and pinned commit verified
           - Python driver version verified
           - hardware_name customization preserved
           - Python syntax validated

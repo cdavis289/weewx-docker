@@ -1,28 +1,39 @@
 #!/usr/bin/env python3
-"""Update RTL-Davis receiver and bundled driver from a stable release."""
+"""Vendor an approved standalone Python RTL-Davis release."""
 
-# Standard Python Libraries
 import ast
+import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
+import tempfile
 import urllib.request
 
-REPOSITORY = "weewx-packages/weewx-rtldavis"
+REPOSITORY = "cdavis289/weewx-rtldavis-py"
 DOCKERFILE = Path("Dockerfile.rtldavis")
-DRIVER = Path("test-assets/rtldavis/rtldavis.py")
-RECEIVER = Path("test-assets/rtldavis/rtldavis_receiver.py")
-DSP = Path("test-assets/rtldavis/rtldavis_dsp.py")
+DESTINATION = Path("test-assets/rtldavis")
+
+MODULES = (
+    "rtldavis.py",
+    "rtldavis_receiver.py",
+    "rtldavis_dsp.py",
+    "rtldavis_gust_diagnostics.py",
+    "rtldavis_frame_diagnostics.py",
+    "rtldavis_phase_c_diagnostics.py",
+    "rtldavis_diagnostic_storage.py",
+    "rtldavis_wind_validation.py",
+)
+
+TAG_PATTERN = r"v([0-9]+\\.[0-9]+\\.[0-9]+)-prod\\.([1-9][0-9]*)"
 
 
 def fail(message):
-    """Exit with an error message."""
     raise SystemExit(f"ERROR: {message}")
 
 
 def fetch_json(url):
-    """Fetch a JSON document from a URL."""
     request = urllib.request.Request(
         url, headers={"User-Agent": "weewx-docker-rtldavis-updater"}
     )
@@ -32,125 +43,188 @@ def fetch_json(url):
         return json.load(response)
 
 
-def fetch_text(url):
-    """Fetch a UTF-8 text document from a URL."""
-    request = urllib.request.Request(
-        url, headers={"User-Agent": "weewx-docker-rtldavis-updater"}
-    )
-    if request.type != "https":
-        fail("Only HTTPS URLs are permitted")
-    with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310
-        return response.read().decode("utf-8")
-
-
-def replace_once(text, old, new, description):
-    """Replace exactly one occurrence of a string or terminate."""
-    count = text.count(old)
-    if count != 1:
-        fail(f"{description}: expected one match, found {count}")
+def replace_once(text, old, new):
+    if text.count(old) != 1:
+        fail(f"Unexpected source: {old}")
     return text.replace(old, new, 1)
 
 
+def update_arg(text, name, value):
+    pattern = rf"^ARG {name}=.*$"
+    text, count = re.subn(
+        pattern, f"ARG {name}={value}",
+        text, flags=re.MULTILINE
+    )
+    if count != 1:
+        fail(f"Expected one declaration for {name}")
+    return text
+
+
+def release_key(tag):
+    match = re.fullmatch(TAG_PATTERN, tag)
+    if not match:
+        fail(f"Invalid production release: {tag}")
+    return tuple(map(int, match.group(1).split("."))) + (
+        int(match.group(2)),
+    )
+
+
+def latest_release():
+    releases = fetch_json(
+        f"https://api.github.com/repos/{REPOSITORY}/releases?per_page=100"
+    )
+    eligible = [
+        release["tag_name"] for release in releases
+        if not release.get("draft")
+        and not release.get("prerelease")
+        and re.fullmatch(TAG_PATTERN, release.get("tag_name", ""))
+    ]
+    return max(eligible, key=release_key) if eligible else None
+
+
 def main():
-    """Validate an upstream release and update the pinned driver."""
+    if sys.argv[1:] == ["--latest"]:
+        print(latest_release() or "")
+        return
+
     if len(sys.argv) != 2:
-        fail("Usage: ./update-rtldavis vX.Y.Z")
+        fail("Usage: ./update-rtldavis vX.Y.Z-prod.N")
 
     tag = sys.argv[1]
-    if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag):
-        fail(f"Invalid stable release tag: {tag}")
+    key = release_key(tag)
+    version = ".".join(map(str, key[:3]))
 
-    if not DOCKERFILE.is_file() or not all(
-        path.is_file() for path in (DRIVER, RECEIVER, DSP)
-    ):
-        fail("Dockerfile or bundled RTL-Davis driver is missing")
-
-    print(f"Checking upstream release {tag}...")
     release = fetch_json(
         f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{tag}"
     )
 
-    if release.get("draft") or release.get("prerelease"):
-        fail(f"{tag} is a draft or prerelease")
-    if release.get("tag_name") != tag:
-        fail("GitHub returned an unexpected release tag")
+    if (release.get("draft") or release.get("prerelease")
+            or release.get("tag_name") != tag):
+        fail("Release is not an approved stable production release")
 
-    docker_text = DOCKERFILE.read_text()
-
-    matches = re.findall(
-        r"^ARG RTL_DAVIS_REF=(v[0-9]+\.[0-9]+\.[0-9]+)$",
-        docker_text,
-        flags=re.MULTILINE,
+    current = json.loads(
+        (DESTINATION / "source-manifest.json").read_text()
     )
-    if len(matches) != 1:
-        fail("Expected exactly one RTL_DAVIS_REF declaration")
+    current_tag = current.get("release", "unreleased")
 
-    old_tag = matches[0]
-    if old_tag == tag:
-        print(f"RTL-Davis is already pinned to {tag}. No changes.")
-        return
+    if current_tag != "unreleased" and key < release_key(current_tag):
+        fail("Automatic driver downgrade is not permitted")
 
-    print(f"Updating {old_tag} -> {tag}")
+    changes = {}
+    hashes = {}
 
-    upstream_url = (
-        f"https://raw.githubusercontent.com/{REPOSITORY}/" f"{tag}/bin/user/rtldavis.py"
-    )
-    upstream = fetch_text(upstream_url)
-
-    expected_version = tag.removeprefix("v")
-    version_matches = re.findall(
-        r"^DRIVER_VERSION\s*=\s*['\"]([^'\"]+)['\"]",
-        upstream,
-        flags=re.MULTILINE,
-    )
-    if version_matches != [expected_version]:
-        fail(
-            f"Driver version mismatch: expected {expected_version}, "
-            f"found {version_matches}"
+    with tempfile.TemporaryDirectory() as directory:
+        subprocess.run(
+            ["git", "clone", "--quiet", "--depth", "1",
+             "--branch", tag,
+             f"https://github.com/{REPOSITORY}.git", directory],
+            check=True,
         )
 
-    upstream = replace_once(
-        upstream,
-        "        stn_dict = config_dict.get(DRIVER_NAME, {})\n",
-        "        stn_dict = config_dict.get(DRIVER_NAME, {})\n"
-        "        self._hardware_name = stn_dict.get('hardware_name', 'Rtldavis')\n",
-        "hardware_name initialization",
-    )
-    upstream = replace_once(
-        upstream,
-        "    def hardware_name(self):\n        return 'Rtldavis'\n",
-        "    def hardware_name(self):\n        return self._hardware_name\n",
-        "hardware_name property",
-    )
+        commit = subprocess.check_output(
+            ["git", "-C", directory, "rev-parse", "HEAD"],
+            text=True,
+        ).strip()
 
-    upstream = "\n".join(line.rstrip(" \t") for line in upstream.split("\n"))
-    ast.parse(upstream, filename=str(DRIVER))
+        if not re.fullmatch(r"[0-9a-f]{40}", commit):
+            fail("Invalid resolved commit")
 
-    updated_docker = replace_once(
-        docker_text,
-        f"ARG RTL_DAVIS_REF={old_tag}",
-        f"ARG RTL_DAVIS_REF={tag}",
-        "Dockerfile receiver version",
-    )
+        if current_tag == tag and current["commit"] != commit:
+            fail("Previously pinned release tag has moved")
 
-    receiver = fetch_text(
-        f"https://raw.githubusercontent.com/{REPOSITORY}/{tag}/bin/user/rtldavis_receiver.py"
-    )
-    dsp = fetch_text(
-        f"https://raw.githubusercontent.com/{REPOSITORY}/{tag}/bin/user/rtldavis_dsp.py"
-    )
-    ast.parse(receiver, filename=str(RECEIVER))
-    ast.parse(dsp, filename=str(DSP))
+        if current_tag == tag:
+            print("Release already installed:", tag)
+            return
 
-    # All validation is complete before files are changed.
-    DOCKERFILE.write_text(updated_docker)
-    DRIVER.write_text(upstream)
-    RECEIVER.write_text(receiver)
-    DSP.write_text(dsp)
+        source = Path(directory) / "bin/user"
 
-    print(f"Updated {DOCKERFILE}, {DRIVER}, {RECEIVER}, and {DSP}")
-    print("Hardware-name customization preserved.")
-    print("Python syntax validation passed.")
+        actual = {p.name for p in source.glob("rtldavis*.py")}
+        if actual != set(MODULES):
+            fail(f"Unexpected driver module set: {actual}")
+
+        for name in MODULES:
+            raw = (source / name).read_bytes()
+            text = raw.decode("utf-8")
+
+            if name == "rtldavis.py":
+                tree = ast.parse(text)
+                versions = [
+                    ast.literal_eval(node.value)
+                    for node in tree.body
+                    if isinstance(node, ast.Assign)
+                    and any(
+                        isinstance(target, ast.Name)
+                        and target.id == "DRIVER_VERSION"
+                        for target in node.targets
+                    )
+                ]
+
+                if versions != [version]:
+                    fail(f"Driver version mismatch: {versions}")
+
+                text = replace_once(
+                    text,
+                    "        stn_dict = config_dict.get(DRIVER_NAME, {})\\n",
+                    "        stn_dict = config_dict.get(DRIVER_NAME, {})\\n"
+                    "        self._hardware_name = stn_dict.get("
+                    "'hardware_name', 'Rtldavis')\\n",
+                )
+
+                text = replace_once(
+                    text,
+                    "    def hardware_name(self):\\n"
+                    "        return 'Rtldavis'\\n",
+                    "    def hardware_name(self):\\n"
+                    "        return self._hardware_name\\n",
+                )
+
+            text = "\\n".join(
+                line.rstrip(" \\t") for line in text.split("\\n")
+            )
+
+            compile(text, name, "exec")
+            content = text.encode("utf-8")
+
+            hashes[name] = {
+                "source_sha256": hashlib.sha256(raw).hexdigest(),
+                "vendored_sha256": hashlib.sha256(content).hexdigest(),
+            }
+            changes[DESTINATION / name] = content
+
+    docker = DOCKERFILE.read_text()
+    for name, value in (
+        ("RTL_DAVIS_REF", "v" + version),
+        ("RTL_DAVIS_RELEASE", tag),
+        ("RTL_DAVIS_REPOSITORY", REPOSITORY),
+        ("RTL_DAVIS_COMMIT", commit),
+    ):
+        docker = update_arg(docker, name, value)
+
+    changes[DOCKERFILE] = docker.encode("utf-8")
+
+    manifest = {
+        "repository": REPOSITORY,
+        "release": tag,
+        "commit": commit,
+        "driver_version": version,
+        "customizations": [
+            "Configurable hardware_name in rtldavis.py",
+            "Trailing whitespace normalization",
+        ],
+        "modules": hashes,
+    }
+
+    changes[DESTINATION / "source-manifest.json"] = (
+        json.dumps(manifest, indent=2, sort_keys=True) + "\\n"
+    ).encode("utf-8")
+
+    for path, content in changes.items():
+        path.write_bytes(content)
+        print("Updated:", path)
+
+    print("Production release:", tag)
+    print("Driver version:", version)
+    print("Pinned commit:", commit)
 
 
 if __name__ == "__main__":

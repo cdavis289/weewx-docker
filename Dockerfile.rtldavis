@@ -5,10 +5,12 @@ USER root
 
 # Python-only RTL-Davis continuation (no Go receiver process).
 ARG RTL_DAVIS_REF=v0.23.0
+ARG RTL_DAVIS_RELEASE=unreleased
 ARG RTL_DAVIS_REPOSITORY=cdavis289/weewx-rtldavis-py
 ARG RTL_DAVIS_COMMIT=dacc6c0b1a48c0cfdb34254260c8f2c028dd4cbc
 
 LABEL io.github.rtldavis.repository="${RTL_DAVIS_REPOSITORY}" \
+      io.github.rtldavis.release="${RTL_DAVIS_RELEASE}" \
       io.github.rtldavis.version="${RTL_DAVIS_REF}" \
       io.github.rtldavis.revision="${RTL_DAVIS_COMMIT}"
 # The base image sets PIP_TARGET=/data/lib/python/site-packages.

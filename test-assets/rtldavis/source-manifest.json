@@ -39,5 +39,6 @@
       "vendored_sha256": "594a64414aecc5980bffb4e9d5498b6a7f87cffec6f0b003ca4168555f629327"
     }
   },
+  "release": "unreleased",
   "repository": "cdavis289/weewx-rtldavis-py"
 }
