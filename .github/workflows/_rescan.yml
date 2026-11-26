@@ -1,0 +1,39 @@
+---
+name: Container Rescan
+
+# Verify and rescan published SPDX attestations without pulling image layers.
+on:  # yamllint disable-line rule:truthy
+  schedule:
+    - cron: '30 10 * * *'
+  workflow_dispatch:
+    inputs:
+      include-edge:
+        description: Include candidate edge images (once published)
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Rescan ${{ matrix.image }} (${{ matrix.arch }}, ${{ matrix.tag }})
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [weewx, weewx-rtldavis]
+        arch: [amd64, arm64]
+        tag: ${{ fromJSON(inputs.include-edge && '["latest","edge"]' || '["latest"]') }}
+    uses: cdavis289/reusable-workflows/.github/workflows/container-rescan.yml@01188791ef466998bc4d30aba4f391316fc91e32
+    with:
+      image-name: cdavis289/${{ matrix.image }}
+      arch: ${{ matrix.arch }}
+      tag: ${{ matrix.tag }}

@@ -14,6 +14,9 @@ on:  # yamllint disable-line rule:truthy
     types:
       - edited
       - published
+  schedule:
+    # Weekly candidate refresh; pinned metadata workflow publishes only edge.
+    - cron: '0 10 * * 1'
   workflow_dispatch:
     inputs:
       image-tag:
@@ -43,28 +46,35 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  packages: write
-  id-token: write
-  attestations: write
-  security-events: write
+permissions: {}
 
 jobs:
   diagnostics:
     name: Diagnostics
+    permissions:
+      contents: read
     uses: cdavis289/reusable-workflows/.github/workflows/diagnostics.yml@eab669bca7f72aedc48123f10b6ace5c563a0a77  # fork based on v4.2.0
 
   config:
     name: Config
+    permissions:
+      contents: read
     uses: ./.github/workflows/_config.yml
 
   lint:
     name: Lint
+    permissions:
+      contents: read
     uses: cdavis289/reusable-workflows/.github/workflows/common-lint.yml@eab669bca7f72aedc48123f10b6ace5c563a0a77  # fork based on v4.2.0
 
   build:
     name: Build and Publish Container
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
     needs:
       - config
       - lint
@@ -111,6 +121,7 @@ jobs:
 
   ci-gate:
     name: CI Gate
+    permissions: {}
     # Single aggregate status check required by branch protection. Keeping this
     # job's NAME stable means reworking the jobs above never requires editing
     # the ruleset again -- only this job's `needs:` list, which lives in code
@@ -251,6 +262,8 @@ jobs:
 
   publish-readme:
     name: Publish docs to DockerHub
+    permissions:
+      contents: read
     needs:
       - publish-manifest
       - config
