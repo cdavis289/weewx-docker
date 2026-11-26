@@ -1,12 +1,16 @@
 ---
 name: Container Rescan
 
-# Check published stable images against a fresh vulnerability database without
-# rebuilding, publishing, or changing any image tags.
+# Verify and rescan published SPDX attestations without pulling image layers.
 on:  # yamllint disable-line rule:truthy
   schedule:
-    - cron: '0 10 * * *'
+    - cron: '30 10 * * *'
   workflow_dispatch:
+    inputs:
+      include-edge:
+        description: Include candidate edge images (once published)
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -16,76 +20,20 @@ concurrency:
 
 jobs:
   scan:
-    name: Rescan ${{ matrix.image }} (${{ matrix.arch }})
-    runs-on: ubuntu-24.04
+    name: Rescan ${{ matrix.image }} (${{ matrix.arch }}, ${{ matrix.tag }})
     permissions:
       contents: read
       packages: read
+      attestations: read
       security-events: write
     strategy:
       fail-fast: false
       matrix:
         image: [weewx, weewx-rtldavis]
         arch: [amd64, arm64]
-    env:
-      IMAGE_REF: ghcr.io/cdavis289/${{ matrix.image }}:latest
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c  # tag=v2.21.0
-        with:
-          egress-policy: audit
-
-      - name: Log in to registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # tag=v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Resolve platform digest
-        id: resolve
-        shell: bash
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          set -euo pipefail
-          manifest=$(docker buildx imagetools inspect --raw "$IMAGE_REF")
-          digest=$(jq -er --arg arch "$ARCH" '
-            [.manifests[] | select(.platform.os == "linux"
-              and .platform.architecture == $arch) | .digest]
-            | if length == 1 then .[0] else error("Expected one platform digest") end
-          ' <<< "$manifest")
-          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
-          echo "ref=${IMAGE_REF%:*}@$digest" >> "$GITHUB_OUTPUT"
-          echo "Scanning $IMAGE_REF ($ARCH): $digest" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Scan published image
-        id: scan
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # tag=v0.36.0
-        with:
-          version: v0.74.0
-          scan-type: image
-          image-ref: ${{ steps.resolve.outputs.ref }}
-          scanners: vuln
-          format: sarif
-          output: rescan.sarif
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          limit-severities-for-sarif: true
-          # Match the existing build-time policy.
-          skip-files: "**/pip/_vendor/bom.cdx.json"
-          exit-code: '1'
-        continue-on-error: true
-
-      - name: Upload SARIF
-        if: ${{ !cancelled() && hashFiles('rescan.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e
-        with:
-          sarif_file: rescan.sarif
-          category: rescan-${{ matrix.image }}-latest-${{ matrix.arch }}
-
-      - name: Enforce scan result
-        if: ${{ !cancelled() && steps.scan.outcome != 'success' }}
-        run: |
-          echo "::error::Vulnerability rescan failed or found fixable HIGH/CRITICAL findings."
-          exit 1
+        tag: ${{ fromJSON(inputs.include-edge && '["latest","edge"]' || '["latest"]') }}
+    uses: cdavis289/reusable-workflows/.github/workflows/container-rescan.yml@01188791ef466998bc4d30aba4f391316fc91e32
+    with:
+      image-name: cdavis289/${{ matrix.image }}
+      arch: ${{ matrix.arch }}
+      tag: ${{ matrix.tag }}
