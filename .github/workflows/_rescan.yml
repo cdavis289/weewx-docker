@@ -32,7 +32,7 @@ jobs:
       matrix:
         image: [weewx, weewx-rtldavis]
         arch: [amd64, arm64]
-    uses: cdavis289/reusable-workflows/.github/workflows/container-rescan.yml@1beb91ac8b97c3b17ce0fc02775b73dc1d4504c8
+    uses: cdavis289/reusable-workflows/.github/workflows/container-rescan.yml@e56813563dcd245b37839f7068b75ec2a847ff0f
     with:
       image-name: cdavis289/${{ matrix.image }}
       arch: ${{ matrix.arch }}
