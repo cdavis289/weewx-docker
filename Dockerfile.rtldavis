@@ -102,14 +102,28 @@ RUN rm -rf /opt/weewx-extensions/weewx-belchertown-new /tmp/weewx-belchertown-ne
 
 RUN cat > /usr/local/bin/start-weewx-rtldavis-overlay <<'EOF'
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-if [ -d /home/weewx/public_html ]; then
+# Root is an explicit compatibility override for older bind mounts.
+if [ "$(id -u)" -eq 0 ] && [ -d /home/weewx/public_html ]; then
   chown -R weewx:weewx /home/weewx/public_html || true
 fi
 
-mkdir -p /data/bin/user
-mkdir -p /data/skins/new-belchertown
+# Fail before replacing any extension files if the mounted data is not writable.
+if ! test -w /data || ! mkdir -p /data/bin/user /data/skins/new-belchertown; then
+  echo "ERROR: /data must be writable by uid:gid $(id -u):$(id -g)." >&2
+  exit 1
+fi
+for directory in /data/bin/user /data/skins /data/skins/new-belchertown; do
+  if [ ! -w "$directory" ] || [ ! -x "$directory" ]; then
+    echo "ERROR: $directory is not writable/searchable by uid:gid $(id -u):$(id -g)." >&2
+    exit 1
+  fi
+done
+
+# A private temporary directory avoids stale charts from previous starts.
+backup_dir="$(mktemp -d)"
+trap 'rm -rf "$backup_dir"' EXIT
 
 echo "Installing/updating weewx-rtldavis driver into /data/bin/user/rtldavis.py"
 cp /opt/weewx-extensions/weewx-rtldavis/rtldavis*.py /data/bin/user/
@@ -124,7 +138,7 @@ cp /opt/weewx-extensions/weewx-mqtt/mqtt.py /data/bin/user/mqtt.py
 
 if [ -f /data/skins/new-belchertown/charts.conf ]; then
   echo "Preserving existing custom Belchertown charts.conf"
-  cp /data/skins/new-belchertown/charts.conf /tmp/belchertown-charts.conf
+  cp /data/skins/new-belchertown/charts.conf "$backup_dir/charts.conf"
 fi
 
 echo "Installing/updating Belchertown New skin into /data/skins/new-belchertown"
@@ -133,8 +147,8 @@ mkdir -p /data/skins/new-belchertown
 cp -a /opt/weewx-extensions/weewx-belchertown-new/new-belchertown/. \
   /data/skins/new-belchertown/
 
-if [ -f /tmp/belchertown-charts.conf ]; then
-  cp /tmp/belchertown-charts.conf /data/skins/new-belchertown/charts.conf
+if [ -f "$backup_dir/charts.conf" ]; then
+  cp "$backup_dir/charts.conf" /data/skins/new-belchertown/charts.conf
 elif [ ! -f /data/skins/new-belchertown/charts.conf ] && [ -f /data/skins/new-belchertown/charts.conf.example ]; then
   echo "Creating initial Belchertown charts.conf from charts.conf.example"
   cp /data/skins/new-belchertown/charts.conf.example /data/skins/new-belchertown/charts.conf
@@ -143,12 +157,18 @@ fi
 echo "Installing/updating Belchertown New Python extension into /data/bin/user/new_belchertown.py"
 cp /opt/weewx-extensions/weewx-belchertown-new/bin/user/new_belchertown.py /data/bin/user/new_belchertown.py
 
-chown -R weewx:weewx /data/bin/user /data/skins/new-belchertown 2>/dev/null || true
+if [ "$(id -u)" -eq 0 ]; then
+  chown -R weewx:weewx /data/bin/user /data/skins/new-belchertown
+fi
 
+rm -rf "$backup_dir"
+trap - EXIT
 exec weewxd --config /data/weewx.conf
 EOF
 
 RUN chmod +x /usr/local/bin/start-weewx-rtldavis-overlay
 
+# Match the base image's non-root runtime. USB access is granted by the host.
+USER weewx
 ENTRYPOINT ["/usr/local/bin/start-weewx-rtldavis-overlay"]
 CMD []
