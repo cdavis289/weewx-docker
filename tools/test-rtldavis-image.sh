@@ -4,11 +4,12 @@ set -Eeuo pipefail
 IMAGE="${1:?Usage: test-rtldavis-image.sh IMAGE}"
 
 ROOT="$(pwd)"
-TEST_DATA="$(mktemp -d)"
+TEST_ROOT="$(mktemp -d)"
+TEST_DATA="${TEST_ROOT}/data"
+mkdir -m 0755 "${TEST_DATA}"
 CONTAINER=""
 
-# The image defaults to uid/gid 1000; prepare only the disposable test mount.
-chmod 0755 "${TEST_DATA}"
+# Keep the host-owned logs separate from the container-owned data mount.
 
 cleanup() {
   if [[ -n "${CONTAINER}" ]]; then
@@ -23,6 +24,8 @@ cleanup() {
     -c 'find /cleanup -mindepth 1 -delete' || true
 
   rmdir "${TEST_DATA}" || true
+  rm -f "${TEST_ROOT}/labels.json" "${TEST_ROOT}/startup.log" "${TEST_ROOT}/readonly.log"
+  rmdir "${TEST_ROOT}" || true
 }
 
 trap cleanup EXIT
@@ -34,9 +37,9 @@ python3 tools/validate-rtldavis.py \
 echo "=== IMAGE PROVENANCE ==="
 docker image inspect "${IMAGE}" \
   --format '{{json .Config.Labels}}' \
-  > "${TEST_DATA}/labels.json"
+  > "${TEST_ROOT}/labels.json"
 
-python3 - "${TEST_DATA}/labels.json" << 'PYTHON'
+python3 - "${TEST_ROOT}/labels.json" << 'PYTHON'
 import json
 import sys
 from pathlib import Path
@@ -97,24 +100,24 @@ CONTAINER="$(docker create \
   "${IMAGE}")"
 
 timeout 60s docker start -a "${CONTAINER}" \
-  > "${TEST_DATA}/startup.log" 2>&1 || true
+  > "${TEST_ROOT}/startup.log" 2>&1 || true
 
 docker rm -f "${CONTAINER}" > /dev/null
 CONTAINER=""
 
 grep -q "Installing/updating Belchertown New Python extension" \
-  "${TEST_DATA}/startup.log"
+  "${TEST_ROOT}/startup.log"
 
 grep -q "preserve_me" \
   "${TEST_DATA}/skins/new-belchertown/charts.conf"
 
 echo "=== READ-ONLY DATA REJECTION ==="
 if docker run --rm -v "${TEST_DATA}:/data:ro" "${IMAGE}" \
-  > "${TEST_DATA}/readonly.log" 2>&1; then
+  > "${TEST_ROOT}/readonly.log" 2>&1; then
   echo "Expected read-only startup failure" >&2
   exit 1
 fi
-grep -q "must be writable by uid:gid" "${TEST_DATA}/readonly.log"
+grep -q "must be writable by uid:gid" "${TEST_ROOT}/readonly.log"
 
 echo "=== INSTALLED MODULES AND IMPORTS ==="
 
