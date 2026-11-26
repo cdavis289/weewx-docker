@@ -44,11 +44,20 @@ services:
     pull_policy: never
     restart: unless-stopped
     stop_grace_period: 90s
-    devices:
-      - /dev/bus/usb:/dev/bus/usb
+    group_add:
+      - "${RTL_SDR_GID:?Set the host RTL-SDR group GID}"
+    device_cgroup_rules:
+      - "c 189:* rw"
     volumes:
+      - /dev/bus/usb:/dev/bus/usb
       - ./data:/data
 ```
+
+The RTL-Davis variant runs as uid/gid 1000 by default. Prepare the host
+volume permissions and a restricted USB udev rule, then set
+`RTL_SDR_GID` to the numeric host device group in your Compose environment.
+See [non-root migration](docs/rtldavis-production.md#non-root-runtime-migration)
+for existing installations, report directories and rollback considerations.
 
 With `pull_policy: never`, pull the image explicitly before starting:
 

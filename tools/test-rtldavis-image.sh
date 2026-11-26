@@ -4,8 +4,12 @@ set -Eeuo pipefail
 IMAGE="${1:?Usage: test-rtldavis-image.sh IMAGE}"
 
 ROOT="$(pwd)"
-TEST_DATA="$(mktemp -d)"
+TEST_ROOT="$(mktemp -d)"
+TEST_DATA="${TEST_ROOT}/data"
+mkdir -m 0755 "${TEST_DATA}"
 CONTAINER=""
+
+# Keep the host-owned logs separate from the container-owned data mount.
 
 cleanup() {
   if [[ -n "${CONTAINER}" ]]; then
@@ -20,6 +24,8 @@ cleanup() {
     -c 'find /cleanup -mindepth 1 -delete' || true
 
   rmdir "${TEST_DATA}" || true
+  rm -f "${TEST_ROOT}/labels.json" "${TEST_ROOT}/startup.log" "${TEST_ROOT}/readonly.log"
+  rmdir "${TEST_ROOT}" || true
 }
 
 trap cleanup EXIT
@@ -31,9 +37,9 @@ python3 tools/validate-rtldavis.py \
 echo "=== IMAGE PROVENANCE ==="
 docker image inspect "${IMAGE}" \
   --format '{{json .Config.Labels}}' \
-  > "${TEST_DATA}/labels.json"
+  > "${TEST_ROOT}/labels.json"
 
-python3 - "${TEST_DATA}/labels.json" << 'PYTHON'
+python3 - "${TEST_ROOT}/labels.json" << 'PYTHON'
 import json
 import sys
 from pathlib import Path
@@ -67,6 +73,13 @@ docker run --rm \
   --manifest /tmp/manifest.json \
   --directory /opt/weewx-extensions/weewx-rtldavis
 
+echo "=== NON-ROOT RUNTIME ==="
+docker run --rm --entrypoint /bin/sh "${IMAGE}" -ec '
+  test "$(id -u)" -eq 1000
+  test "$(id -g)" -eq 1000
+  test ! -w /opt/weewx-extensions/weewx-rtldavis/rtldavis.py
+'
+
 echo "=== STARTUP OVERLAY ==="
 
 mkdir -p "${TEST_DATA}/skins/new-belchertown"
@@ -77,22 +90,34 @@ printf '%s\n' \
   '    value = preserve_me' \
   > "${TEST_DATA}/skins/new-belchertown/charts.conf"
 
+# Give the runtime user ownership of the test mount, not the host's real data.
+docker run --rm --user 0 --entrypoint /bin/sh \
+  -v "${TEST_DATA}:/data" "${IMAGE}" -ec 'chown -R 1000:1000 /data'
+
 CONTAINER="$(docker create \
   --entrypoint /usr/local/bin/start-weewx-rtldavis-overlay \
   -v "${TEST_DATA}:/data" \
   "${IMAGE}")"
 
 timeout 60s docker start -a "${CONTAINER}" \
-  > "${TEST_DATA}/startup.log" 2>&1 || true
+  > "${TEST_ROOT}/startup.log" 2>&1 || true
 
 docker rm -f "${CONTAINER}" > /dev/null
 CONTAINER=""
 
 grep -q "Installing/updating Belchertown New Python extension" \
-  "${TEST_DATA}/startup.log"
+  "${TEST_ROOT}/startup.log"
 
 grep -q "preserve_me" \
   "${TEST_DATA}/skins/new-belchertown/charts.conf"
+
+echo "=== READ-ONLY DATA REJECTION ==="
+if docker run --rm -v "${TEST_DATA}:/data:ro" "${IMAGE}" \
+  > "${TEST_ROOT}/readonly.log" 2>&1; then
+  echo "Expected read-only startup failure" >&2
+  exit 1
+fi
+grep -q "must be writable by uid:gid" "${TEST_ROOT}/readonly.log"
 
 echo "=== INSTALLED MODULES AND IMPORTS ==="
 

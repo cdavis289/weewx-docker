@@ -150,6 +150,7 @@ jobs:
           TEST_DATA=$(mktemp -d)
           trap 'sudo rm -rf "${TEST_DATA}"' EXIT
 
+          chmod 0755 "${TEST_DATA}"
           mkdir -p "${TEST_DATA}/skins/new-belchertown"
 
           # Match production: /data is a host volume. NumPy must remain
@@ -166,6 +167,9 @@ jobs:
           [test_marker]
               value = preserve_me
           CHARTS
+
+          docker run --rm --user 0 --entrypoint /bin/sh \
+            -v "${TEST_DATA}:/data" "${IMAGE_REF}" -ec 'chown -R 1000:1000 /data'
 
           docker run --rm \
             --entrypoint /usr/local/bin/start-weewx-rtldavis-overlay \
