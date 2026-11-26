@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG PYTHON_VERSION=3.14.10
+ARG PYTHON_VERSION=3.15.2
 ARG WEEWX_UID=1000
 ARG WEEWX_HOME="/home/weewx"
 
