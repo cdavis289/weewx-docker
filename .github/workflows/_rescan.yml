@@ -7,10 +7,11 @@ on:  # yamllint disable-line rule:truthy
     - cron: '30 10 * * *'
   workflow_dispatch:
     inputs:
-      include-edge:
-        description: Include candidate edge images (once published)
-        type: boolean
-        default: false
+      image-tag:
+        description: Published image tag (latest, develop, edge, or a specific tag)
+        type: string
+        required: true
+        default: latest
 
 permissions: {}
 
@@ -20,7 +21,7 @@ concurrency:
 
 jobs:
   scan:
-    name: Rescan ${{ matrix.image }} (${{ matrix.arch }}, ${{ matrix.tag }})
+    name: Rescan ${{ matrix.image }} (${{ matrix.arch }}, ${{ inputs.image-tag || 'latest' }})
     permissions:
       contents: read
       packages: read
@@ -31,10 +32,9 @@ jobs:
       matrix:
         image: [weewx, weewx-rtldavis]
         arch: [amd64, arm64]
-        tag: ${{ fromJSON(inputs.include-edge && '["latest","edge"]' || '["latest"]') }}
     uses: cdavis289/reusable-workflows/.github/workflows/container-rescan.yml@1beb91ac8b97c3b17ce0fc02775b73dc1d4504c8
     with:
       image-name: cdavis289/${{ matrix.image }}
       arch: ${{ matrix.arch }}
-      tag: ${{ matrix.tag }}
+      tag: ${{ inputs.image-tag || 'latest' }}
       signer-workflow: cdavis289/reusable-workflows/.github/workflows/container-build.yml
