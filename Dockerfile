@@ -4,6 +4,15 @@ ARG PYTHON_VERSION=3.14.6
 ARG WEEWX_UID=1000
 ARG WEEWX_HOME="/home/weewx"
 
+# Match the Debian suite used by the Python slim base image.
+ARG DEBIAN_SUITE=trixie
+
+# Remote archive metadata invalidates cached APT layers when updates appear.
+FROM scratch AS archive-state
+ARG DEBIAN_SUITE
+ADD https://deb.debian.org/debian-security/dists/${DEBIAN_SUITE}-security/InRelease /security
+ADD https://deb.debian.org/debian/dists/${DEBIAN_SUITE}-updates/InRelease /updates
+
 FROM python:${PYTHON_VERSION} AS build-stage
 
 # clang/lld are used to build any dependencies that ship only as source
@@ -27,6 +36,9 @@ COPY src/version.txt ./src/version.txt
 RUN pip install --no-cache-dir --upgrade pip setuptools "msgpack>=1.2.1" \
   && pip install --no-cache-dir .
 
+# Stable path for skin and extension configuration across Python minor upgrades.
+RUN ln -s "$(python -c 'import sys; print("python%d.%d" % sys.version_info[:2])')" /opt/venv/lib/python
+
 FROM python:${PYTHON_VERSION}-slim AS final-stage
 
 ARG CONTAINER_VERSION
@@ -49,8 +61,9 @@ RUN addgroup --system --gid ${WEEWX_UID} weewx \
 # libnss-wrapper lets the entrypoint synthesize passwd/group entries at runtime
 # so the container works under an arbitrary uid:gid (rootless / Kubernetes
 # runAsUser) without write access to /etc/passwd. See src/entrypoint.sh.
-RUN apt-get update \
-  && apt-get upgrade -y \
+RUN --mount=type=bind,from=archive-state,target=/run/archive-state \
+  apt-get update \
+  && apt-get upgrade -y --with-new-pkgs \
   && apt-get install -y --no-install-recommends \
     git \
     libusb-1.0-0 \

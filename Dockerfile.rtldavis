@@ -1,4 +1,14 @@
+# syntax=docker/dockerfile:1
+
 ARG WEEWX_BASE_IMAGE=ghcr.io/cdavis289/weewx:5.6.0
+ARG DEBIAN_SUITE=trixie
+
+# Match the suite of WEEWX_BASE_IMAGE; refresh APT when archives change.
+FROM scratch AS archive-state
+ARG DEBIAN_SUITE
+ADD https://deb.debian.org/debian-security/dists/${DEBIAN_SUITE}-security/InRelease /security
+ADD https://deb.debian.org/debian/dists/${DEBIAN_SUITE}-updates/InRelease /updates
+
 FROM ${WEEWX_BASE_IMAGE}
 
 USER root
@@ -17,11 +27,10 @@ LABEL io.github.rtldavis.repository="${RTL_DAVIS_REPOSITORY}" \
 # Installing there would be hidden by WeeWX's /data runtime bind mount.
 RUN env -u PIP_TARGET /opt/venv/bin/python -m pip install --no-cache-dir 'numpy>=2,<3'
 
-# Refresh the Debian package index even when BuildKit has cached an earlier
-# installation layer. Increment this value when a new CA bundle is required.
-ARG APT_CACHE_BUST=2026-10-23
-RUN echo "APT cache refresh: ${APT_CACHE_BUST}" \
- && apt-get update \
+# Refresh packages whenever the Debian security or updates archive changes.
+RUN --mount=type=bind,from=archive-state,target=/run/archive-state \
+ apt-get update \
+ && apt-get upgrade -y --with-new-pkgs \
  && apt-get install -y --no-install-recommends --only-upgrade ca-certificates \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
@@ -61,10 +70,13 @@ RUN mkdir -p /opt/weewx-extensions/MQTTSubscribe \
 # Vendor the patched WeeWX MQTT RESTful extension into the image.
 # Pull from Chris's maintained fork instead of copying a local patch file.
 ARG WEEWX_MQTT_REPO=https://github.com/cdavis289/weewx-mqtt.git
-ARG WEEWX_MQTT_REF=paho2-weewx5
+ARG WEEWX_MQTT_REF=14bab7cd57cc5f97393fb0e090d90982de704f13
 
 RUN mkdir -p /opt/weewx-extensions/weewx-mqtt \
- && git clone --depth 1 --branch "$WEEWX_MQTT_REF" "$WEEWX_MQTT_REPO" /tmp/weewx-mqtt \
+ && git init /tmp/weewx-mqtt \
+ && git -C /tmp/weewx-mqtt fetch --depth 1 "$WEEWX_MQTT_REPO" "$WEEWX_MQTT_REF" \
+ && git -C /tmp/weewx-mqtt checkout --detach FETCH_HEAD \
+ && test "$(git -C /tmp/weewx-mqtt rev-parse HEAD)" = "$WEEWX_MQTT_REF" \
  && cp /tmp/weewx-mqtt/bin/user/mqtt.py /opt/weewx-extensions/weewx-mqtt/mqtt.py \
  && test -f /opt/weewx-extensions/weewx-mqtt/mqtt.py \
  && rm -rf /tmp/weewx-mqtt
