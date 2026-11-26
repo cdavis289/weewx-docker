@@ -8,7 +8,7 @@ TEST_DATA="$(mktemp -d)"
 CONTAINER=""
 
 # The image defaults to uid/gid 1000; prepare only the disposable test mount.
-chmod 0777 "${TEST_DATA}"
+chmod 0755 "${TEST_DATA}"
 
 cleanup() {
   if [[ -n "${CONTAINER}" ]]; then
@@ -110,12 +110,11 @@ grep -q "preserve_me" \
 
 echo "=== READ-ONLY DATA REJECTION ==="
 if docker run --rm -v "${TEST_DATA}:/data:ro" "${IMAGE}" \
-  > /tmp/rtldavis-readonly-test.log 2>&1; then
+  > "${TEST_DATA}/readonly.log" 2>&1; then
   echo "Expected read-only startup failure" >&2
   exit 1
 fi
-grep -q "must be writable by uid:gid" /tmp/rtldavis-readonly-test.log
-rm -f /tmp/rtldavis-readonly-test.log
+grep -q "must be writable by uid:gid" "${TEST_DATA}/readonly.log"
 
 echo "=== INSTALLED MODULES AND IMPORTS ==="
 
