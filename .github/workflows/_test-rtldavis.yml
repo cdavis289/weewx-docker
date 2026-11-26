@@ -150,7 +150,7 @@ jobs:
           TEST_DATA=$(mktemp -d)
           trap 'sudo rm -rf "${TEST_DATA}"' EXIT
 
-          chmod 0777 "${TEST_DATA}"
+          chmod 0755 "${TEST_DATA}"
           mkdir -p "${TEST_DATA}/skins/new-belchertown"
 
           # Match production: /data is a host volume. NumPy must remain
