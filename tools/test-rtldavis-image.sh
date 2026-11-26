@@ -7,6 +7,9 @@ ROOT="$(pwd)"
 TEST_DATA="$(mktemp -d)"
 CONTAINER=""
 
+# The image defaults to uid/gid 1000; prepare only the disposable test mount.
+chmod 0777 "${TEST_DATA}"
+
 cleanup() {
   if [[ -n "${CONTAINER}" ]]; then
     docker rm -f "${CONTAINER}" > /dev/null 2>&1 || true
@@ -67,6 +70,13 @@ docker run --rm \
   --manifest /tmp/manifest.json \
   --directory /opt/weewx-extensions/weewx-rtldavis
 
+echo "=== NON-ROOT RUNTIME ==="
+docker run --rm --entrypoint /bin/sh "${IMAGE}" -ec '
+  test "$(id -u)" -eq 1000
+  test "$(id -g)" -eq 1000
+  test ! -w /opt/weewx-extensions/weewx-rtldavis/rtldavis.py
+'
+
 echo "=== STARTUP OVERLAY ==="
 
 mkdir -p "${TEST_DATA}/skins/new-belchertown"
@@ -76,6 +86,10 @@ printf '%s\n' \
   '[test_marker]' \
   '    value = preserve_me' \
   > "${TEST_DATA}/skins/new-belchertown/charts.conf"
+
+# Give the runtime user ownership of the test mount, not the host's real data.
+docker run --rm --user 0 --entrypoint /bin/sh \
+  -v "${TEST_DATA}:/data" "${IMAGE}" -ec 'chown -R 1000:1000 /data'
 
 CONTAINER="$(docker create \
   --entrypoint /usr/local/bin/start-weewx-rtldavis-overlay \
@@ -93,6 +107,15 @@ grep -q "Installing/updating Belchertown New Python extension" \
 
 grep -q "preserve_me" \
   "${TEST_DATA}/skins/new-belchertown/charts.conf"
+
+echo "=== READ-ONLY DATA REJECTION ==="
+if docker run --rm -v "${TEST_DATA}:/data:ro" "${IMAGE}" \
+  > /tmp/rtldavis-readonly-test.log 2>&1; then
+  echo "Expected read-only startup failure" >&2
+  exit 1
+fi
+grep -q "must be writable by uid:gid" /tmp/rtldavis-readonly-test.log
+rm -f /tmp/rtldavis-readonly-test.log
 
 echo "=== INSTALLED MODULES AND IMPORTS ==="
 
